@@ -20,16 +20,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Run Microsoft Security DevOps Analysis
-        uses: microsoft/security-devops-action@preview
-        id: msdo
-        continue-on-error: true
+      - name: Run PSRule analysis
+        uses: microsoft/ps-rule@v2.9.0
         with:
-          tools: templateanalyzer
-
-      - name: Upload alerts to Security tab
+          modules: PSRule.Rules.Azure
+          baseline: Azure.Pillar.Security
+          inputPath: tests/
+          outputFormat: Sarif
+          outputPath: reports/ps-rule-results.sarif
+          summary: true
+        continue-on-error: true
+        env:
+          PSRULE_CONFIGURATION_AZURE_BICEP_FILE_EXPANSION: 'true'
+          PSRULE_CONFIGURATION_AZURE_BICEP_FILE_EXPANSION_TIMEOUT: '60'
+      - name: Upload results to security tab
         uses: github/codeql-action/upload-sarif@v3
         if: github.repository_owner == 'Azure-Samples'
         with:
-          sarif_file: ${{ steps.msdo.outputs.sarifFile }}
+          sarif_file: reports/ps-rule-results.sarif

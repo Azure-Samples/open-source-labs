@@ -1,0 +1,1 @@
+The files in this folder are for the purposes of running PSRule analysis for security checks.
