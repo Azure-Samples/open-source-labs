@@ -37,11 +37,11 @@ param osDiskSize int = 256
 
 @description('The OS image for the VM.')
 @allowed([
-  'Ubuntu 20.04-LTS'
-  'Ubuntu 20.04-LTS (arm64)'
-  'Ubuntu 18.04-LTS'
+  'Ubuntu 26.04-LTS'
+  'Ubuntu 26.04-LTS (arm64)'
+  'Ubuntu 24.04-LTS'
 ])
-param osImage string = 'Ubuntu 20.04-LTS'
+param osImage string = 'Ubuntu 26.04-LTS'
 
 @description('Location for all resources.')
 param location string = resourceGroup().location
@@ -198,22 +198,22 @@ var kvCloudInit = {
 }
 
 var kvImageReference = {
-  'Ubuntu 20.04-LTS': {
-    publisher: 'canonical'
-    offer: '0001-com-ubuntu-server-focal'
-    sku: '20_04-lts-gen2'
-    version: 'latest'
-  }
-  'Ubuntu 18.04-LTS': {
+  'Ubuntu 26.04-LTS': {
     publisher: 'Canonical'
-    offer: 'UbuntuServer'
-    sku: '18.04-LTS'
+    offer: 'ubuntu-26_04-lts'
+    sku: 'server'
     version: 'latest'
   }
-  'Ubuntu 20.04-LTS (arm64)': {
-    publisher: 'canonical'
-    offer: '0001-com-ubuntu-server-focal'
-    sku: '20_04-lts-arm64'
+  'Ubuntu 24.04-LTS': {
+    publisher: 'Canonical'
+    offer: 'ubuntu-24_04-lts'
+    sku: 'server'
+    version: 'latest'
+  }
+  'Ubuntu 26.04-LTS (arm64)': {
+    publisher: 'Canonical'
+    offer: 'ubuntu-26_04-lts'
+    sku: 'server-arm64'
     version: 'latest'
   }
 }
