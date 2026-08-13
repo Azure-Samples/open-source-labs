@@ -1,0 +1,97 @@
+resource_group := env_var_or_default("RESOURCE_GROUP", `date +%Y-%m` + "-vm-azure-linux")
+location := env_var_or_default("LOCATION", "canadacentral")
+vm_name := env_var_or_default("VM_NAME", "vm1")
+os_image := env_var_or_default("OS_IMAGE", "Azure Linux 3")
+ssh_key := env_var_or_default("SSH_KEY", "")
+ip_allow := env_var_or_default("IP_ALLOW", "")
+
+export RESOURCE_GROUP := resource_group
+export LOCATION := location
+export VM_NAME := vm_name
+export OS_IMAGE := os_image
+export SSH_KEY := ssh_key
+export IP_ALLOW := ip_allow
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+default:
+    @just --list
+
+# Create the Azure resource group.
+group-create:
+    az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+
+# Deleting a resource group destroys any role assignment scoped to it, so where
+# your access is granted at the group scope rather than the subscription, reach
+# for this instead of group-delete.
+
+# Empty the resource group, leaving the group itself in place.
+group-empty:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    temp_dir="$(mktemp -d)"
+    empty_bicep="$temp_dir/empty.bicep"
+    trap 'rm -f "$empty_bicep"; rmdir "$temp_dir"' EXIT
+    : > "$empty_bicep"
+
+    printf 'Emptying RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$empty_bicep" \
+        --mode Complete
+
+# Delete the Azure resource group and everything in it.
+group-delete:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'Deleting RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az group delete --resource-group "$RESOURCE_GROUP" --yes
+
+# Deploy vm.bicep at resource group scope.
+deploy-vm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ -z "$SSH_KEY" ]]; then
+        printf 'SSH_KEY is not set. Provide the path to an SSH public key.\n' >&2
+        exit 1
+    fi
+    if [[ ! -f "$SSH_KEY" ]]; then
+        printf 'SSH_KEY does not exist: %s\n' "$SSH_KEY" >&2
+        exit 1
+    fi
+
+    ssh_public_key="$(<"$SSH_KEY")"
+    if [[ "$ssh_public_key" == "-----BEGIN OPENSSH PRIVATE KEY-----"* ]]; then
+        printf 'SSH_KEY is a private key. Provide a public key instead.\n' >&2
+        exit 1
+    fi
+
+    ip_allow="$IP_ALLOW"
+    if [[ -z "$ip_allow" ]]; then
+        ip_allow="$(curl --fail --silent --show-error https://myip.dnsomatic.com/)"
+    fi
+
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file vm.bicep \
+        --parameters \
+            "location=$LOCATION" \
+            "vmName=$VM_NAME" \
+            "osImage=$OS_IMAGE" \
+            "sshKey=$ssh_public_key" \
+            "allowIpPort22=$ip_allow"
+
+# Print the SSH command from the VM deployment.
+ssh-command:
+    az deployment group show \
+        --name vm \
+        --resource-group "$RESOURCE_GROUP" \
+        --output tsv \
+        --query "properties.outputs.sshCommand.value"
+
+# Print the caller's public IP address.
+who-am-i:
+    @curl --fail --silent --show-error https://myip.dnsomatic.com/
+    @printf '\n'
