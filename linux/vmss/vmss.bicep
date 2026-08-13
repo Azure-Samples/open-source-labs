@@ -3,18 +3,9 @@ param vmssName string = 'vmss1'
 
 @description('The Virtual Machine size.')
 @allowed([
-  'Standard_B1ls'
-  'Standard_B1s'
-  'Standard_B2s'
-  'Standard_B1ms'
-  'Standard_B2ms'
-  'Standard_B4ms'
-  'Standard_D2s_v5'
-  'Standard_D4s_v5'
-  'Standard_D2ps_v5'
-  'Standard_D4ps_v5'
+  'Standard_D2s_v6'
 ])
-param vmSize string = 'Standard_B2s'
+param vmSize string = 'Standard_D2s_v6'
 
 @description('The Storage Account Type for OS and Data disks.')
 @allowed([
@@ -37,14 +28,12 @@ param osDiskSize int = 256
 
 @description('The OS image for the VM.')
 @allowed([
-  //'Ubuntu 22.04-LTS'
-  'Ubuntu 20.04-LTS'
-  'Ubuntu 20.04-LTS (arm64)'
-  'mariner-gen2'
-  'mariner-gen1'
-  'mariner-arm'
+  'Ubuntu 26.04-LTS'
+  'Ubuntu 26.04-LTS (arm64)'
+  'Ubuntu 24.04-LTS'
+  'Azure Linux 4'
 ])
-param osImage string = 'Ubuntu 20.04-LTS'
+param osImage string = 'Ubuntu 26.04-LTS'
 
 @description('Location for all resources.')
 param location string = resourceGroup().location
@@ -147,43 +136,33 @@ var kvCustomData = {
 }
 
 var kvImageReference = {
-  'Ubuntu 20.04-LTS': {
-    publisher: 'canonical'
-    offer: '0001-com-ubuntu-server-focal'
-    sku: '20_04-lts-gen2'
-    version: 'latest'
-  }
-  'Ubuntu 18.04-LTS': {
+  'Ubuntu 26.04-LTS': {
     publisher: 'Canonical'
-    offer: 'UbuntuServer'
-    sku: '18.04-LTS'
+    offer: 'ubuntu-26_04-lts'
+    sku: 'server'
     version: 'latest'
   }
-  'Ubuntu 20.04-LTS (arm64)': {
-    publisher: 'canonical'
-    offer: '0001-com-ubuntu-server-focal'
-    sku: '20_04-lts-arm64'
+  'Ubuntu 26.04-LTS (arm64)': {
+    publisher: 'Canonical'
+    offer: 'ubuntu-26_04-lts'
+    sku: 'server-arm64'
     version: 'latest'
   }
-  'mariner-gen1': {
-    publisher: 'MicrosoftCBLMariner'
-    offer: 'cbl-mariner'
-    sku: 'cbl-mariner-2'
+  'Ubuntu 24.04-LTS': {
+    publisher: 'Canonical'
+    offer: 'ubuntu-24_04-lts'
+    sku: 'server'
     version: 'latest'
   }
-  'mariner-gen2': {
-    publisher: 'MicrosoftCBLMariner'
-    offer: 'cbl-mariner'
-    sku: 'cbl-mariner-2-gen2'
-    version: 'latest'
-  }
-  'mariner-arm': {
-    publisher: 'MicrosoftCBLMariner'
-    offer: 'cbl-mariner'
-    sku: 'cbl-mariner-2-arm64'
+  'Azure Linux 4': {
+    publisher: 'microsoftazurelinux'
+    offer: 'azurelinux-4'
+    sku: '4'
     version: 'latest'
   }
 }
+
+var resolvedVmSize = osImage == 'Ubuntu 26.04-LTS (arm64)' ? 'Standard_D2ps_v6' : vmSize
 
 // Base network security group rules
 var nsgSecurityRulesBase = [
@@ -256,12 +235,12 @@ var nsgSecurityRulesBase = [
 
 var nsgSecurityRules = nsgSecurityRulesBase
 
-resource identityName 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
+resource identityName 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   name: '${resourceGroup().name}-identity'
   location: location
 }
 
-resource publicIP 'Microsoft.Network/publicIPAddresses@2020-05-01' = {
+resource publicIP 'Microsoft.Network/publicIPAddresses@2026-01-01' = {
   name: publicIPAddressName
   location: location
   sku: {
@@ -275,7 +254,7 @@ resource publicIP 'Microsoft.Network/publicIPAddresses@2020-05-01' = {
   }
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
+resource vnet 'Microsoft.Network/virtualNetworks@2026-01-01' = {
   name: vnetName
   location: location
   properties: {
@@ -308,7 +287,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   }
 }
 
-resource nsg 'Microsoft.Network/networkSecurityGroups@2018-12-01' = {
+resource nsg 'Microsoft.Network/networkSecurityGroups@2026-01-01' = {
   name: nsgName
   location: location
   properties: {
@@ -316,7 +295,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2018-12-01' = {
   }
 }
 
-resource loadBalancer 'Microsoft.Network/loadBalancers@2020-05-01' = {
+resource loadBalancer 'Microsoft.Network/loadBalancers@2026-01-01' = {
   name: loadBalancerName
   location: location
   sku: {
@@ -419,7 +398,7 @@ resource loadBalancer 'Microsoft.Network/loadBalancers@2020-05-01' = {
   }
 }
 
-resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2019-12-01' = {
+resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2026-04-01' = {
   name: vmssName
   location: location
   identity: {
@@ -429,14 +408,17 @@ resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2019-12-01
     }
   }
   sku: {
-    name: vmSize
+    name: resolvedVmSize
     capacity: instanceCount
     tier: vmssTier
   }
   properties: {
     overprovision: true
     upgradePolicy: {
-      mode: 'Manual'
+      mode: 'Automatic'
+      automaticOSUpgradePolicy: {
+        enableAutomaticOSUpgrade: true
+      }
     }
     virtualMachineProfile: {
       priority: vmssPriority
@@ -497,6 +479,23 @@ resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2019-12-01
                   }
                 }
               ]
+            }
+          }
+        ]
+      }
+      extensionProfile: {
+        extensions: [
+          {
+            name: 'ApplicationHealthLinux'
+            properties: {
+              publisher: 'Microsoft.ManagedServices'
+              type: 'ApplicationHealthLinux'
+              typeHandlerVersion: '2.0'
+              autoUpgradeMinorVersion: true
+              settings: {
+                protocol: 'tcp'
+                port: 22
+              }
             }
           }
         ]
