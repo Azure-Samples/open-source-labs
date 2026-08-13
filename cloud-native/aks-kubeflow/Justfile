@@ -1,0 +1,264 @@
+# Preserve the original defaults, including the YYMM00 resource-group date format.
+resource_group := env_var_or_default("RESOURCE_GROUP", `date +%y%m00` + "-kubeflow")
+location := env_var_or_default("LOCATION", "eastus")
+aks_name := env_var_or_default("AKS_NAME", "aks1")
+aks_vm_size := env_var_or_default("AKS_VM_SIZE", "Standard_D2s_v5")
+aks_node_count := env_var_or_default("AKS_NODE_COUNT", "3")
+aks_kubernetes_version := env_var_or_default("AKS_KUBERNETES_VERSION", "1.29")
+kubeflow_version := env_var_or_default("KUBEFLOW_VERSION", "v1.6.1")
+
+export RESOURCE_GROUP := resource_group
+export LOCATION := location
+export AKS_NAME := aks_name
+export AKS_VM_SIZE := aks_vm_size
+export AKS_NODE_COUNT := aks_node_count
+export AKS_KUBERNETES_VERSION := aks_kubernetes_version
+export KUBEFLOW_VERSION := kubeflow_version
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+default:
+    @just --list
+
+# Create the Azure resource group.
+group-create:
+    az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+
+# Create the Azure Kubernetes Service cluster.
+aks:
+    az aks create \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$AKS_NAME" \
+        --node-count "$AKS_NODE_COUNT" \
+        --node-vm-size "$AKS_VM_SIZE" \
+        --kubernetes-version "$AKS_KUBERNETES_VERSION" \
+        --enable-addons monitoring \
+        --generate-ssh-keys
+
+# Get credentials for the AKS cluster.
+aks-credentials:
+    az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME" --overwrite-existing
+
+# Install kubectl through the Azure CLI.
+aks-kubectl:
+    az aks install-cli
+
+# Install kustomize 3.2.0 in /usr/local/bin.
+ensure-kustomize:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "${SUDO_USER:-}" ]]; then
+        printf 'Run this recipe with sudo.\n' >&2
+        exit 1
+    fi
+
+    case "$(uname -s)-$(uname -m)" in
+        Darwin-arm64|Darwin-x86_64)
+            asset="kustomize_3.2.0_darwin_amd64"
+            ;;
+        Linux-x86_64)
+            asset="kustomize_3.2.0_linux_amd64"
+            ;;
+        *)
+            printf 'Unsupported platform: %s-%s\n' "$(uname -s)" "$(uname -m)" >&2
+            exit 1
+            ;;
+    esac
+
+    temp_file="$(mktemp)"
+    trap 'rm -f "$temp_file"' EXIT
+    curl --fail --location --silent --show-error \
+        "https://github.com/kubernetes-sigs/kustomize/releases/download/v3.2.0/$asset" \
+        --output "$temp_file"
+    install -m 0755 "$temp_file" /usr/local/bin/kustomize
+
+# Install Kubeflow from the cloned manifests, retrying transient apply failures.
+kubeflow:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd manifests
+    while ! kustomize build example | kubectl apply -f -; do
+        printf 'Retrying to apply resources\n'
+        sleep 10
+    done
+
+# Delete Kubeflow resources defined by the cloned manifests.
+kubeflow-delete:
+    cd manifests && kustomize build example | kubectl delete -f -
+
+# Wait for every Kubeflow pod to become ready.
+kubectl-ready:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    namespaces=(
+        cert-manager
+        istio-system
+        auth
+        knative-eventing
+        knative-serving
+        kubeflow
+        kubeflow-user-example-com
+    )
+
+    check_ready() {
+        local namespace
+        for namespace in "${namespaces[@]}"; do
+            kubectl wait \
+                --for=condition=Ready \
+                pods \
+                --all \
+                --namespace "$namespace" \
+                --timeout=30s || return
+        done
+    }
+
+    for attempt in {1..10}; do
+        if check_ready; then
+            exit 0
+        fi
+        if (( attempt < 10 )); then
+            printf 'attempt %d of 10 failed. waiting 60 seconds.\n' "$attempt"
+            sleep 60
+        fi
+    done
+
+    printf 'exceeded max attempts: 10\n' >&2
+    exit 1
+
+# List pods in each Kubeflow namespace.
+kubeflow-pods:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    namespaces=(
+        cert-manager
+        istio-system
+        auth
+        knative-eventing
+        knative-serving
+        kubeflow
+        kubeflow-user-example-com
+    )
+    for namespace in "${namespaces[@]}"; do
+        kubectl get pods --namespace "$namespace"
+    done
+
+# Forward local port 8080 to the Kubeflow ingress gateway.
+kubeflow-port:
+    kubectl port-forward svc/istio-ingressgateway --namespace istio-system 8080:80
+
+# Restart the Dex deployment.
+restart-dex:
+    kubectl rollout restart deployment dex --namespace auth
+
+# Clone the configured Kubeflow manifests release.
+clone:
+    git clone https://github.com/kubeflow/manifests.git --branch "$KUBEFLOW_VERSION"
+
+# Discard changes in the cloned manifests repository.
+checkout:
+    git -C manifests restore --source=HEAD --worktree .
+
+# Remove the cloned manifests repository.
+clean:
+    rm -rf -- manifests
+
+# Deleting a resource group destroys any role assignment scoped to it, so where
+# your access is granted at the group scope rather than the subscription, reach
+# for this instead of group-delete.
+
+# Empty the resource group, leaving the group itself in place.
+group-empty:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    temp_dir="$(mktemp -d)"
+    empty_bicep="$temp_dir/empty.bicep"
+    trap 'rm -f "$empty_bicep"; rmdir "$temp_dir"' EXIT
+    : > "$empty_bicep"
+
+    printf 'Emptying RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$empty_bicep" \
+        --mode Complete
+
+# Delete the Azure resource group and everything in it.
+group-delete:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'Deleting RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az group delete --name "$RESOURCE_GROUP" --yes
+
+[private]
+_password-and-hash:
+    @cd {{justfile_directory()}}/tools/password && go run .
+
+# Generate a 32-character password and its cost-12 bcrypt hash.
+password:
+    @just _password-and-hash
+
+# Copy the AKS-specific manifest overlays into the cloned manifests.
+patch:
+    cp -R aks/manifests .
+
+# Configure Dex with a generated password and record it in auth.md.
+configure-dex:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    config_file="aks/manifests/common/dex/base/config-map.yaml"
+    git restore --source=HEAD -- "$config_file" auth.md
+
+    credentials="$(just --quiet _password-and-hash)"
+    password="${credentials#Password: }"
+    password="${password%%$'\n'*}"
+    hash="${credentials##*$'\n'Hash: }"
+
+    python3 -c \
+        'import sys; from pathlib import Path; path = Path(sys.argv[1]); old, new = sys.argv[2:]; text = path.read_text(); text.count(old) == 1 or sys.exit(f"expected exactly one occurrence of {old!r} in {path}"); path.write_text(text.replace(old, new))' \
+        "$config_file" \
+        'hash: $2y$12$4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72' \
+        "hash: $hash"
+
+    python3 -c \
+        'import sys; from pathlib import Path; path = Path(sys.argv[1]); old, new = sys.argv[2:]; text = path.read_text(); text.count(old) == 1 or sys.exit(f"expected exactly one occurrence of {old!r} in {path}"); path.write_text(text.replace(old, new))' \
+        auth.md \
+        'Password: 12341234' \
+        "Password: $password"
+
+# Configure TLS for the ingress gateway's public IP address.
+configure-tls:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ip="$(kubectl \
+        --namespace istio-system \
+        get service istio-ingressgateway \
+        --output 'jsonpath={.status.loadBalancer.ingress[0].ip}')"
+    if [[ -z "$ip" ]]; then
+        printf 'The istio-ingressgateway IP address is empty.\n' >&2
+        exit 1
+    fi
+    printf 'IP Address: %s\n' "$ip"
+
+    certificate_file="aks/certificate.yaml"
+    git restore --source=HEAD -- "$certificate_file"
+    python3 -c \
+        'import sys; from pathlib import Path; path = Path(sys.argv[1]); old, new = sys.argv[2:]; text = path.read_text(); text.count(old) == 1 or sys.exit(f"expected exactly one occurrence of {old!r} in {path}"); path.write_text(text.replace(old, new))' \
+        "$certificate_file" \
+        '192.168.0.5' \
+        "$ip"
+
+    python3 -c \
+        'import sys; from pathlib import Path; path = Path(sys.argv[1]); old, new = sys.argv[2:]; text = path.read_text(); text.count(old) == 1 or sys.exit(f"expected exactly one occurrence of {old!r} in {path}"); path.write_text(text.replace(old, new))' \
+        auth.md \
+        'URL: http://localhost:8080' \
+        "URL: https://$ip"
+
+    kubectl apply --filename "$certificate_file"
+
+# Wait for the specified number of seconds.
+wait seconds:
+    @printf 'waiting %ss\n' "{{ seconds }}"
+    @sleep "{{ seconds }}"
+
+# Run the complete Kubeflow deployment and configuration sequence.
+kubeflow-all: clean clone configure-dex patch kubeflow kubectl-ready restart-dex configure-tls

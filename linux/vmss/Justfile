@@ -1,0 +1,104 @@
+# Use a readable year-month resource group name instead of the old opaque YYMM00 format.
+resource_group := env_var_or_default("RESOURCE_GROUP", `date +%Y-%m` + "-vmss")
+location := env_var_or_default("LOCATION", "eastus")
+vmss_name := env_var_or_default("VMSS_NAME", "vmss1")
+vmss_size := env_var_or_default("VMSS_SIZE", "Standard_D2s_v6")
+vmss_instance_count := env_var_or_default("VMSS_INSTANCE_COUNT", "1")
+vmss_os_disk_size := env_var_or_default("VMSS_OS_DISK_SIZE", "128")
+os_image := env_var_or_default("OS_IMAGE", "Ubuntu 24.04-LTS")
+environment := env_var_or_default("ENV", "{}")
+ip_allow := env_var_or_default("IP_ALLOW", "")
+ssh_key := env_var_or_default("SSH_KEY", "")
+
+export RESOURCE_GROUP := resource_group
+export LOCATION := location
+export VMSS_NAME := vmss_name
+export VMSS_SIZE := vmss_size
+export VMSS_INSTANCE_COUNT := vmss_instance_count
+export VMSS_OS_DISK_SIZE := vmss_os_disk_size
+export OS_IMAGE := os_image
+export ENV := environment
+export IP_ALLOW := ip_allow
+export SSH_KEY := ssh_key
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+default:
+    @just --list
+
+# Create the Azure resource group.
+group-create:
+    az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+
+# Deleting a resource group destroys any role assignment scoped to it, so where
+# your access is granted at the group scope rather than the subscription, reach
+# for this instead of group-delete.
+
+# Empty the resource group, leaving the group itself in place.
+group-empty:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    temp_dir="$(mktemp -d)"
+    empty_bicep="$temp_dir/empty.bicep"
+    trap 'rm -f "$empty_bicep"; rmdir "$temp_dir"' EXIT
+    : > "$empty_bicep"
+
+    printf 'Emptying RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$empty_bicep" \
+        --mode Complete
+
+# Delete the Azure resource group and everything in it.
+group-delete:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'Deleting RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az group delete --resource-group "$RESOURCE_GROUP" --yes
+
+# Deploy vmss.bicep at resource group scope.
+deploy-vmss:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    ip_allow="$IP_ALLOW"
+    if [[ -z "$ip_allow" ]]; then
+        ip_allow="$(curl --fail --silent --show-error https://myip.dnsomatic.com/)"
+    fi
+
+    parameters=(
+        "location=$LOCATION"
+        "vmssName=$VMSS_NAME"
+        "vmSize=$VMSS_SIZE"
+        "osDiskSize=$VMSS_OS_DISK_SIZE"
+        "osImage=$OS_IMAGE"
+        "allowIpPort22=$ip_allow"
+        "instanceCount=$VMSS_INSTANCE_COUNT"
+        "env=$ENV"
+    )
+
+    if [[ -n "$SSH_KEY" ]]; then
+        if [[ ! -f "$SSH_KEY" ]]; then
+            printf 'SSH_KEY does not exist: %s\n' "$SSH_KEY" >&2
+            exit 1
+        fi
+        ssh_public_key="$(<"$SSH_KEY")"
+        if [[ "$ssh_public_key" == "-----BEGIN OPENSSH PRIVATE KEY-----"* ]]; then
+            printf 'SSH_KEY is a private key. Provide a public key instead.\n' >&2
+            exit 1
+        fi
+        parameters+=("sshKey=$ssh_public_key")
+    else
+        printf 'SSH_KEY not set. Using the template default.\n'
+    fi
+
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file vmss.bicep \
+        --parameters "${parameters[@]}"
+
+# Print the caller's public IP address.
+who-am-i:
+    @curl --fail --silent --show-error https://myip.dnsomatic.com/
+    @printf '\n'

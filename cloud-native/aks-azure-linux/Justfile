@@ -1,0 +1,61 @@
+# Use a readable year-month resource group name instead of the old opaque YYMM00 format.
+resource_group := env_var_or_default("RESOURCE_GROUP", `date +%Y-%m` + "-azure-linux")
+location := env_var_or_default("LOCATION", "eastus")
+aks_name := env_var_or_default("AKS_NAME", "aks1")
+k8s_namespace := env_var_or_default("K8S_NAMESPACE", "default")
+
+export RESOURCE_GROUP := resource_group
+export LOCATION := location
+export AKS_NAME := aks_name
+export K8S_NAMESPACE := k8s_namespace
+
+default:
+    @just --list
+
+# Create the Azure resource group.
+group-create:
+    az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+
+# Deleting a resource group destroys any role assignment scoped to it, so where
+# your access is granted at the group scope rather than the subscription, reach
+# for this instead of group-delete.
+
+# Empty the resource group, leaving the group itself in place.
+group-empty:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    temp_dir="$(mktemp -d)"
+    empty_bicep="$temp_dir/empty.bicep"
+    trap 'rm -f "$empty_bicep"; rmdir "$temp_dir"' EXIT
+    : > "$empty_bicep"
+
+    printf 'Emptying RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$empty_bicep" \
+        --mode Complete
+
+# Delete the Azure resource group and everything in it.
+group-delete:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'Deleting RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az group delete --resource-group "$RESOURCE_GROUP" --yes
+
+# Deploy aks.bicep at resource group scope.
+deploy-aks:
+    az deployment group create --resource-group "$RESOURCE_GROUP" --template-file aks.bicep --parameters "location=$LOCATION"
+
+# Delete all resources in the configured Kubernetes namespace.
+empty-namespace:
+    az aks command invoke --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME" --command "kubectl delete all --all -n $K8S_NAMESPACE"
+
+# Get credentials for the AKS cluster.
+aks-credentials:
+    az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME" --overwrite-existing
+
+# Install kubectl through the Azure CLI.
+install-kubectl:
+    az aks install-cli
