@@ -1,37 +1,25 @@
-# Deploy Azure Kubernetes Service (AKS) with Bicep and Azure Verified Modules (AVM)
+# Deploy Azure Kubernetes Service (AKS) with Bicep on Azure Cobalt Arm-based VMs
 
-Deploys [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/azure/aks/what-is-aks) running [Azure Linux](https://learn.microsoft.com/azure/aks/use-azure-linux) and [Azure Cobalt 100 Arm-based VMs](https://learn.microsoft.com/azure/virtual-machines/sizes/cobalt-overview).
+Deploys [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/azure/aks/what-is-aks) as a raw Bicep resource running [Azure Linux](https://learn.microsoft.com/azure/aks/use-azure-linux) on [Azure Cobalt 100 Arm-based VMs](https://learn.microsoft.com/azure/virtual-machines/sizes/cobalt-overview).
 
 ## Deploy via Azure Portal
 
 [Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fazure-opensource-labs%2Fmain%2Fcloud-native%2Faks-arm%2Faks.json)
 
-## Prerequisites
+## Requirements
 
-- Azure Subscription
-- Azure CLI
+- An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
 - Bicep
 
 ## Deploy via Azure CLI
 
-Azure Linux V3 Preview feature registration:
-
-```bash
-az feature register \
-    --namespace Microsoft.ContainerService \
-    --name AzureLinuxV3Preview
-```
-
-```bash
-az feature show \
-    --namespace Microsoft.ContainerService \
-    --name AzureLinuxV3Preview
-```
-
-```bash
-az provider register \
-    -n Microsoft.ContainerService
-```
+Azure Linux 3 no longer needs a preview feature registration. It is a first
+class `osSKU` value on the stable `2026-05-01` API version this template uses,
+and the template defaults to it. Verified on 2026-08-11: with
+`AzureLinuxV3Preview` reporting `NotRegistered`, a deployment of this template
+still came up on Azure Linux V3 node images.
 
 Create resource group:
 
