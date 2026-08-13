@@ -20,16 +20,10 @@ You can also join us on the [Microsoft Open Source Discord (aka.ms/open-source-d
 
 [Go to Cloud Native labs](cloud-native/#readme)
 
-Containers, Kubernetes, Azure Kubernetes Service, Azure Container Apps, Open Source, KEDA (Kubernetes Event-driven Autoscaling), Dapr (Distributed Application Runtime), and more.
+Containers, Kubernetes, Azure Kubernetes Service, Open Source, KEDA (Kubernetes Event-driven Autoscaling), and more.
 
 ## Linux
 
 [Go to Linux labs](linux/#readme)
 
 Linux, Virtual Machines, Virtual Machine Scale Sets, and more.
-
-## More
-
-[Go to More labs](more/#readme)
-
-Go, Python, Cloud Native Go, GitHub Actions, Container Apps, PyCon, GopherCon, OSCON, and more.
