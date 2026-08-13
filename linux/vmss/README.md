@@ -2,31 +2,57 @@
 
 ## Requirements
 
-- [Go](https://go.dev/dl/)
-- [Mage](https://magefile.org/) (`go install github.com/magefile/mage@latest`)
-- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
+- [curl](https://curl.se/)
 
 ## Commands
 
 ```
-$ mage
-Targets:
-  az:vmss         deploys vm.bicep
-  group:create    creates the Azure Resource Group
-  group:delete    deletes the Azure Resource Group
-  group:empty     empties the Azure Resource Group
-  test:whoAmI 
+$ just
+Available recipes:
+    default
+    deploy-vmss  # Deploy vmss.bicep at resource group scope.
+    group-create # Create the Azure resource group.
+    group-delete # Delete the Azure resource group and everything in it.
+    group-empty  # Empty the resource group, leaving the group itself in place.
+    who-am-i     # Print the caller's public IP address.
 ```
+
+`group-empty` deploys an empty template in Complete mode, removing the contents
+but leaving the group itself. Prefer it over `group-delete` where your access is
+granted at the resource-group scope, since deleting the group destroys any role
+assignment scoped to it.
+
+## OS images
+
+| `OS_IMAGE` | Publisher | Offer | SKU | Architecture |
+| --- | --- | --- | --- | --- |
+| `Ubuntu 24.04-LTS` (default) | Canonical | ubuntu-24_04-lts | server | x64 |
+| `Ubuntu 24.04-LTS (arm64)` | Canonical | ubuntu-24_04-lts | server-arm64 | Arm64 |
+| `Ubuntu 22.04-LTS` | Canonical | 0001-com-ubuntu-server-jammy | 22_04-lts-gen2 | x64 |
+| `Azure Linux 3` | MicrosoftCBLMariner | azure-linux-3 | azure-linux-3-gen2 | x64 |
+
+The Arm64 image automatically uses the Arm64-capable `Standard_D2ps_v6` size.
+The other images default to `Standard_D2s_v6`.
 
 ## Usage
 
 ```bash
 # (optional) define the resource group name
-# export RESOURCE_GROUP='231000-azr'
+# export RESOURCE_GROUP='2026-08-vmss'
 
 # create the group and deploy the vmss
-mage group:create az:vmss
+just group-create deploy-vmss
 
-# tear down and/or delete
-mage group:empty group:delete
+# deploy the Arm64 image
+OS_IMAGE='Ubuntu 24.04-LTS (arm64)' just deploy-vmss
+
+# empty the group while preserving it and its scoped role assignments
+just group-empty
+
+# or delete the group and everything in it
+just group-delete
 ```

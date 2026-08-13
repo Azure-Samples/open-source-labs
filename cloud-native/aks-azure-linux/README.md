@@ -5,10 +5,9 @@ In this lab you will deploy an Azure Kubernetes Service (AKS) cluster with Azure
 ## Requirements
 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
-- The [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)
-- Bash shell (e.g. macOS, Linux, [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/en-us/windows/wsl/about), [Multipass](https://multipass.run/), [Azure Cloud Shell](https://docs.microsoft.com/en-us/azure/cloud-shell/quickstart), [GitHub Codespaces](https://github.com/features/codespaces), etc)
-- [Go](https://go.dev/dl/) (Optional)
-- [Mage](https://magefile.org/) (`go install github.com/magefile/mage@latest`) (Optional)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 
 ## Instructions
 
@@ -32,28 +31,38 @@ Change to this directory.
 cd azure-opensource-labs/cloud-native/aks-azure-linux
 ```
 
-While you can deploy the Bicep templates ([aks.bicep](./aks.bicep)) via the Azure CLI or Azure Portal, we have included a Magefile, [magefile.go](./magefile.go), with the following targets to make deployment easier.
+While you can deploy the Bicep templates ([aks.bicep](./aks.bicep)) via the Azure CLI or Azure Portal, we have included a [Justfile](./Justfile) with recipes that make deployment easier.
+
+Running `just` with no arguments lists them:
 
 ```
-$ mage
-Targets:
-  aksCredentials    gets credentials for the AKS cluster
-  aksKubectl        ensures kubectl is installed
-  deployAKS         deploys aks.bicep at the Resource Group scope
-  emptyNamespace    has az invoke kubectl delete all on K8S_NAMESPACE
-  group:create      creates the Azure Resource Group
-  group:delete      deletes the Azure Resource Group
-  group:empty       empties the Azure Resource Group
+$ just
+Available recipes:
+    aks-credentials # Get credentials for the AKS cluster.
+    default
+    deploy-aks      # Deploy aks.bicep at resource group scope.
+    empty-namespace # Delete all resources in the configured Kubernetes namespace.
+    group-create    # Create the Azure resource group.
+    group-delete    # Delete the Azure resource group and everything in it.
+    group-empty     # Empty the resource group, leaving the group itself in place.
+    install-kubectl # Install kubectl through the Azure CLI.
 ```
+
+`group-empty` deploys an empty template in Complete mode, removing the contents
+but leaving the group itself. Prefer it over `group-delete` where your access is
+granted at the resource-group scope, since deleting the group destroys any role
+assignment scoped to it.
 
 ### Deployment
 
 ```
-mage group:create deployAks
+just group-create deploy-aks
 ```
 
-### Delete resources
+### Empty the resource group
+
+Never delete the resource group: doing so removes the service principal's scoped Owner grant. Emptying it with a Complete-mode deployment reclaims its resources while preserving access.
 
 ```
-mage group:empty
+just group-empty
 ```

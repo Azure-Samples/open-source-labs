@@ -12,12 +12,12 @@ This particular VM will include the following software:
 - [Cog CLI](https://cog.run/getting-started/#install-cog)
 - [Python](https://www.python.org/downloads/)
 
-## Prerequisites
+## Requirements
 
-To use this template, you will need to have the following software installed on your local machine:
-
+- An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
 - [Terraform](https://www.terraform.io/downloads.html)
-- [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli)
 
 ## Provisioning resources
 

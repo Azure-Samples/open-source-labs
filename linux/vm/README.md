@@ -10,7 +10,7 @@ The "Deploy to Azure" button above can be the fastest way to get up and running 
 
 You can see how this link is generated in [PORTAL.md](PORTAL.md). It uses the [vm.json](vm.json) ARM (Azure Resource Manager) template, generated from the [vm.bicep](vm.bicep) Bicep template using the `az bicep build -f vm.bicep` command.
 
-Deploying via the command line, which deploys the Bicep template directly, enables you to easily customize it to your requirements, install the [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) and follow the steps below. These examples require a bash shell (e.g. macOS, Linux, [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/windows/wsl/about), [Multipass](https://multipass.run/), [Azure Cloud Shell](https://docs.microsoft.com/azure/cloud-shell/quickstart), [GitHub Codespaces](https://github.com/features/codespaces), etc).
+Deploying via the command line, which deploys the Bicep template directly, enables you to easily customize it to your requirements, install the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and follow the steps below. These examples require a Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces)).
 
 ## Cloud-init
 
@@ -31,8 +31,6 @@ Installs [docker](https://docs.docker.com/engine/install/ubuntu/) for containers
 This template is used as the foundation for other templates such as `tailscale` and is an excellent starting point for your own cloud-init scripts.
 
 ### `tailscale`
-
-[Walkthrough (vimeo.com)](https://vimeo.com/735970928/abef23554e)
 
 This package uses the `write_files` and `run_cmd` modules to write the `env` parameter (`{"tskey":"..."}`) to `/home/azureuser/env.json` function), and our setup script to `/home/azureuser/tailscale.sh`. The `env` variable is embedded in the template using Bicep's [format](https://docs.microsoft.com/azure/azure-resource-manager/bicep/bicep-functions-string#format) function. The `tskey` value is extracted using `jq` and the script completes by echoing the current date to `/home/azureuser/hello.txt`. See variable `cloudInitTailscale` in [vm.bicep](vm.bicep).
 
@@ -192,12 +190,12 @@ az deployment group create \
         cloudInit='tailscale-private' \
         env="$ENV" \
         vmSize="$VM_SIZE" \
-        osImage='Ubuntu 20.04-LTS (arm64)'
+        osImage='Ubuntu 24.04-LTS (arm64)'
 ```
 
 The `vmSize` parameter in the [vm.bicep](./vm.bicep) template currently accepts either `Standard_D2ps_v5` or `Standard_D2ps_v5`.
 
-When using any of these SKUs, you must make sure the `osImage` is set to `Ubuntu 20.04-LTS (arm64)` as this value will select the proper OS image that can be used with arm64 architecture.
+When using any of these SKUs, you must make sure the `osImage` is set to `Ubuntu 24.04-LTS (arm64)` as this value will select the proper OS image that can be used with arm64 architecture.
 
 ## Delete Resources
 

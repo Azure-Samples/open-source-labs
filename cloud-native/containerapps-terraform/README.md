@@ -13,8 +13,8 @@ To import dashboards, navigate to your Azure Managed Grafana site, click on the 
 ## Requirements
 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
-- The [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli)
-- Bash shell (e.g. macOS, Linux, [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/windows/wsl/about), [Multipass](https://multipass.run/), [Azure Cloud Shell](https://docs.microsoft.com/azure/cloud-shell/quickstart), [GitHub Codespaces](https://github.com/features/codespaces), etc)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
 - The [Terraform CLI](https://www.terraform.io/downloads)
 - The [k6 CLI](https://k6.io/docs/getting-started/installation/)
 
@@ -71,11 +71,6 @@ Run the below command to send some load to your application.
 ```bash
 k6 run --vus 200 --duration 10s k6_scripts.js
 ```
-
-Once you have sent some traffic to the service, you can watch these videos for more details on the deployment.
-
-- [http-scaling](https://vimeo.com/manage/videos/746678347)
-- [event-driven-scaling](https://vimeo.com/manage/videos/746678266)
 
 If you are feeling adventurous, try implementing another container app with one of these [KEDA scalers](https://keda.sh/docs/scalers/) 🚀
 

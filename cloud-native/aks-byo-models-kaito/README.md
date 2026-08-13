@@ -13,19 +13,19 @@ By the end of this walkthrough, you will be able to:
 1. Pack and push ModelKit (model and inference code) to ACR with Kit CLI
 1. Self-host Cog model inferencing application on AKS with KAITO
 
-## Pre-requisites
+## Requirements
 
-Before you begin, you will need the following tools installed.
-
-- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) for managing Azure resources.
+- An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
 - [Terraform](https://developer.hashicorp.com/terraform/install) for provisioning Azure resources.
+- [curl](https://curl.se/) for making HTTP requests.
 - [Docker](https://www.docker.com/get-started/) for building and running container images.
+- [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) for managing Kubernetes resources.
 - [KitOps CLI](https://kitops.org/docs/cli/installation/) for managing ModelKits.
 - [Cog CLI](https://cog.run/getting-started/#install-cog) for building and running containerized inference applications.
-- [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) for managing Kubernetes resources.
 - [Python](https://www.python.org/downloads/) for developing the model inference code.
 - [jq](https://jqlang.org/) for parsing JSON.
-- [curl](https://curl.se/) for making HTTP requests.
 
 > [!TIP]
 > This workshop can be run on any local machine with the above tools installed. However, if you are facing challenges with local compute power or network bandwidth limitations, you can run this workshop on an Azure Virtual Machine. Check out this [README](./workstation/README.md) for instructions on how to set up a VM with all the tools pre-installed. With the VM in place, SSH into the node and proceed with the rest of this walk-through.
