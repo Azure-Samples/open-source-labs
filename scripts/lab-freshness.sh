@@ -93,6 +93,7 @@ days_since() {
 }
 
 rows=""
+derived=()          # path<TAB>date, for `seed`
 counts_ok=0; counts_stale=0; counts_never=0
 
 for section in "${SECTIONS[@]}"; do
@@ -106,8 +107,15 @@ for section in "${SECTIONS[@]}"; do
         method=$(jq -r --arg p "$dir" \
             '.labs[] | select(.path==$p) | .method // empty' "$LEDGER")
 
+        derived+=("$dir"$'\t'"$updated")
+
         if [ -z "$validated" ]; then
             status='never validated'; counts_never=$((counts_never+1))
+        elif [ "$method" = "inferred" ]; then
+            # Date copied from the last substantive commit, not from a run.
+            # Never "ok": nobody has proved this lab deploys.
+            status="unvalidated · $(days_since "$validated")d old"
+            counts_never=$((counts_never+1))
         elif [[ "$updated" > "$validated" ]]; then
             status='changed since validated'; counts_stale=$((counts_stale+1))
         elif [ -n "$(days_since "$validated")" ] \
@@ -138,5 +146,29 @@ case "${1:-render}" in
         fi
         printf 'lab-freshness: all %s labs validated and current\n' "$counts_ok"
         ;;
-    *) die "usage: lab-freshness.sh [render|check]" ;;
+    seed)
+        # Backfill last_validated from each lab's last substantive commit,
+        # marked method=inferred so the table never reports it as validated.
+        # It only gives the Validated column a date, making staleness legible
+        # before anyone has run anything. A real `just validated` record is
+        # never overwritten — only null and previously-inferred entries move.
+        n=0
+        for pair in "${derived[@]}"; do
+            p=${pair%%$'\t'*}; d=${pair#*$'\t'}
+            [ -n "$d" ] || continue
+            # Skip entries carrying a real validation, so the count reflects
+            # rows actually moved rather than rows visited.
+            jq -e --arg p "$p" '.labs[] | select(.path==$p and
+                (.last_validated==null or .method=="inferred"))' \
+                "$LEDGER" >/dev/null || continue
+            jq --arg p "$p" --arg d "$d" '
+                (.labs[] | select(.path==$p and
+                                  (.last_validated==null or .method=="inferred")))
+                  |= (.last_validated=$d | .method="inferred" | .validated_by=null)
+            ' "$LEDGER" > "$LEDGER.tmp" && mv "$LEDGER.tmp" "$LEDGER"
+            n=$((n+1))
+        done
+        printf 'lab-freshness: seeded %s labs from commit dates (method=inferred)\n' "$n"
+        ;;
+    *) die "usage: lab-freshness.sh [render|check|seed]" ;;
 esac

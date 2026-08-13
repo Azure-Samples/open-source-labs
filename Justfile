@@ -9,6 +9,10 @@ index:
 index-check:
     @./scripts/lab-freshness.sh check
 
+# Backfill unvalidated labs with their last-commit date (method=inferred)
+index-seed:
+    @./scripts/lab-freshness.sh seed
+
 # Record that a lab was validated today: just validated cloud-native/aks-arm what-if
 validated path method="what-if" by="":
     #!/usr/bin/env bash
