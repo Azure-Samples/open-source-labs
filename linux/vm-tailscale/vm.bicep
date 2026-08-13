@@ -85,12 +85,79 @@ packages:
 
 write_files:
 - path: /home/azureuser/env.json
-  content: {0}
+  content: __ENV_B64__
   encoding: b64
+- path: /usr/local/bin/tailscale-authurl
+  permissions: '0755'
+  content: |
+    #!/usr/bin/env bash
+    # Print this node's Tailscale interactive login URL.
+    # Pass --refresh to discard an expired URL and mint a fresh one.
+    set -eo pipefail
+
+    if [ "$#" -gt 0 ] && [ "$1" = "--refresh" ]; then
+        tailscale logout >/dev/null 2>&1 || true
+        setsid tailscale up --ssh --timeout=1s >/dev/null 2>&1 || true
+    fi
+
+    for i in $(seq 1 30); do
+        url=$(tailscale status --json 2>/dev/null | jq -r '.AuthURL // empty')
+        if [ -n "$url" ]; then
+            echo "$url"
+            exit 0
+        fi
+        state=$(tailscale status --json 2>/dev/null | jq -r '.BackendState // empty')
+        if [ "$state" = "Running" ]; then
+            echo "already onboarded; re-run with --refresh to re-authenticate" >&2
+            exit 0
+        fi
+        sleep 2
+    done
+
+    echo "no auth URL available" >&2
+    exit 1
 - path: /home/azureuser/tailscale.sh
   content: |
+    #!/usr/bin/env bash
+    # Install Tailscale, then either join with an auth key or publish a login URL.
+    set -eo pipefail
+
     curl -fsSL https://tailscale.com/install.sh | sh
-    sudo tailscale up --ssh --authkey "$1"
+
+    key="$1"
+    if [ -n "$key" ] && [ "$key" != "null" ]; then
+        tailscale up --ssh --authkey "$key"
+        # Console writes are best-effort: never fail the boot over logging.
+        echo "tailscale: joined tailnet with auth key" >/dev/console 2>/dev/null || true
+        exit 0
+    fi
+
+    # No auth key. 'tailscale up' blocks until the node is authorized, so run it
+    # detached and poll the daemon for the login URL it generates.
+    setsid tailscale up --ssh >/var/log/tailscale-up.log 2>&1 &
+
+    url=""
+    for i in $(seq 1 60); do
+        url=$(tailscale status --json 2>/dev/null | jq -r '.AuthURL // empty')
+        if [ -n "$url" ]; then
+            break
+        fi
+        sleep 2
+    done
+
+    if [ -z "$url" ]; then
+        echo "tailscale: FAILED to obtain a login URL" >/dev/console 2>/dev/null || true
+        echo "tailscale: FAILED to obtain a login URL" >&2
+        exit 1
+    fi
+
+    echo "$url" >/var/lib/tailscale-authurl.txt
+    chmod 0644 /var/lib/tailscale-authurl.txt
+
+    # Publish to the serial console so it reaches Azure boot diagnostics.
+    # Best-effort: the file above is the authoritative copy.
+    printf '\n===== TAILSCALE LOGIN URL =====\n%s\n===============================\n\n' \
+        "$url" >/dev/console 2>/dev/null || true
 
 runcmd:
 - cd /home/azureuser/
@@ -99,7 +166,7 @@ runcmd:
 - chown -R azureuser:azureuser /home/azureuser/
 '''
 
-var cloudInitTailscaleFormat = format(cloudInitTailscale, base64(string(env)))
+var cloudInitTailscaleFormat = replace(cloudInitTailscale, '__ENV_B64__', base64(string(env)))
 
 var kvCloudInit = {
   none: null
@@ -231,6 +298,13 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-03-01' = {
       }
       imageReference: kvImageReference[osImage]
     }
+    // Managed boot diagnostics: lets the keyless flow surface the Tailscale
+    // login URL via 'az vm boot-diagnostics get-boot-log'.
+    diagnosticsProfile: {
+      bootDiagnostics: {
+        enabled: true
+      }
+    }
     networkProfile: {
       networkInterfaces: [
         {
@@ -260,3 +334,9 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-03-01' = {
 output adminUsername string = adminUsername
 output hostname string = publicIP.properties.dnsSettings.fqdn
 output sshCommand string = 'ssh ${adminUsername}@${publicIP.properties.dnsSettings.fqdn}'
+
+@description('Fetch the Tailscale login URL when deployed without an auth key.')
+output authUrlCommand string = 'az vm run-command invoke --resource-group ${resourceGroup().name} --name ${vmName} --command-id RunShellScript --scripts "tailscale-authurl" --query "value[0].message" -o tsv'
+
+@description('Same URL via the serial console, no in-VM agent required.')
+output authUrlBootLogCommand string = 'az vm boot-diagnostics get-boot-log --resource-group ${resourceGroup().name} --name ${vmName} -o tsv | grep -o "https://login.tailscale.com/a/[a-z0-9]*" | tail -1'

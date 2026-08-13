@@ -45,6 +45,60 @@ az deployment group create \
         env='{"tskey":"<YOUR_TAILSCALE_AUTH_KEY>"}'
 ```
 
+## Without an auth key
+
+An auth key is optional. Omit `env` and the VM brings Tailscale up in
+interactive-login mode, captures the login URL that `tailscale up` prints, and
+publishes it in two places you can reach with the Azure CLI:
+
+```bash
+az deployment group create \
+    --resource-group $RESOURCE_GROUP \
+    --template-uri https://raw.githubusercontent.com/Azure-Samples/open-source-labs/main/linux/vm-tailscale/vm.json \
+    --parameters cloudInit='tailscale'
+```
+
+Fetch the login URL (needs the Azure VM agent, ~30s):
+
+```bash
+az vm run-command invoke \
+    --resource-group $RESOURCE_GROUP \
+    --name vm1 \
+    --command-id RunShellScript \
+    --scripts "tailscale-authurl" \
+    --query 'value[0].message' -o tsv
+```
+
+Or read it off the serial console, which needs nothing running inside the VM:
+
+```bash
+az vm boot-diagnostics get-boot-log \
+    --resource-group $RESOURCE_GROUP \
+    --name vm1 -o tsv \
+    | grep -o 'https://login.tailscale.com/a/[a-z0-9]*' | tail -1
+```
+
+The `-o tsv` matters: the default output is a single JSON-escaped string, so
+line-oriented matching (`grep -A1`) finds nothing useful.
+
+Open the URL in a browser and approve the machine. The node joins your tailnet
+with Tailscale SSH already enabled — `tailscale up --ssh` stays running in the
+background on the VM waiting for exactly that.
+
+Tailscale expires these URLs server-side after 7 days, so a VM can sit and wait
+for you. If yours has gone stale, mint a fresh one:
+
+```bash
+az vm run-command invoke \
+    --resource-group $RESOURCE_GROUP \
+    --name vm1 \
+    --command-id RunShellScript \
+    --scripts "tailscale-authurl --refresh" \
+    --query 'value[0].message' -o tsv
+```
+
+The URL is also written to `/var/lib/tailscale-authurl.txt` on the VM.
+
 Once deployed, SSH via Tailscale (with [MagicDNS](https://tailscale.com/kb/1081/magicdns/)):
 
 ```bash
@@ -66,7 +120,7 @@ ssh azureuser@<tailscale-ip>
 | `osImage` | `Ubuntu 24.04-LTS` | OS image (`Ubuntu 24.04-LTS (arm64)` for Arm) |
 | `osDiskSize` | `64` | OS disk size in GB |
 | `cloudInit` | `none` | `tailscale` or `none` |
-| `env` | `{}` | JSON object with `tskey` for Tailscale auth key |
+| `env` | `{}` | JSON object with `tskey` for Tailscale auth key; omit for interactive login |
 | `adminUsername` | `azureuser` | VM admin username |
 | `adminPasswordOrKey` | _(placeholder)_ | SSH public key (not needed with Tailscale SSH) |
 

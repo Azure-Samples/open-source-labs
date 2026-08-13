@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.40.2.10011",
-      "templateHash": "9014597243353373291"
+      "version": "0.46.1.21595",
+      "templateHash": "147430417931669304"
     }
   },
   "parameters": {
@@ -128,8 +128,8 @@
     "ipConfigName": "[format('{0}-ipconfig', parameters('vmName'))]",
     "subnetAddressPrefix": "10.1.0.0/24",
     "addressPrefix": "10.1.0.0/16",
-    "cloudInitTailscale": "#cloud-config\n# vim: syntax=yaml\n\npackages:\n- jq\n- curl\n\nwrite_files:\n- path: /home/azureuser/env.json\n  content: {0}\n  encoding: b64\n- path: /home/azureuser/tailscale.sh\n  content: |\n    curl -fsSL https://tailscale.com/install.sh | sh\n    sudo tailscale up --ssh --authkey \"$1\"\n\nruncmd:\n- cd /home/azureuser/\n- bash tailscale.sh \"$(jq -r '.tskey' env.json)\"\n- echo $(date) > hello.txt\n- chown -R azureuser:azureuser /home/azureuser/\n",
-    "cloudInitTailscaleFormat": "[format(variables('cloudInitTailscale'), base64(string(parameters('env'))))]",
+    "cloudInitTailscale": "#cloud-config\n# vim: syntax=yaml\n\npackages:\n- jq\n- curl\n\nwrite_files:\n- path: /home/azureuser/env.json\n  content: __ENV_B64__\n  encoding: b64\n- path: /usr/local/bin/tailscale-authurl\n  permissions: '0755'\n  content: |\n    #!/usr/bin/env bash\n    # Print this node's Tailscale interactive login URL.\n    # Pass --refresh to discard an expired URL and mint a fresh one.\n    set -eo pipefail\n\n    if [ \"$#\" -gt 0 ] && [ \"$1\" = \"--refresh\" ]; then\n        tailscale logout >/dev/null 2>&1 || true\n        setsid tailscale up --ssh --timeout=1s >/dev/null 2>&1 || true\n    fi\n\n    for i in $(seq 1 30); do\n        url=$(tailscale status --json 2>/dev/null | jq -r '.AuthURL // empty')\n        if [ -n \"$url\" ]; then\n            echo \"$url\"\n            exit 0\n        fi\n        state=$(tailscale status --json 2>/dev/null | jq -r '.BackendState // empty')\n        if [ \"$state\" = \"Running\" ]; then\n            echo \"already onboarded; re-run with --refresh to re-authenticate\" >&2\n            exit 0\n        fi\n        sleep 2\n    done\n\n    echo \"no auth URL available\" >&2\n    exit 1\n- path: /home/azureuser/tailscale.sh\n  content: |\n    #!/usr/bin/env bash\n    # Install Tailscale, then either join with an auth key or publish a login URL.\n    set -eo pipefail\n\n    curl -fsSL https://tailscale.com/install.sh | sh\n\n    key=\"$1\"\n    if [ -n \"$key\" ] && [ \"$key\" != \"null\" ]; then\n        tailscale up --ssh --authkey \"$key\"\n        # Console writes are best-effort: never fail the boot over logging.\n        echo \"tailscale: joined tailnet with auth key\" >/dev/console 2>/dev/null || true\n        exit 0\n    fi\n\n    # No auth key. 'tailscale up' blocks until the node is authorized, so run it\n    # detached and poll the daemon for the login URL it generates.\n    setsid tailscale up --ssh >/var/log/tailscale-up.log 2>&1 &\n\n    url=\"\"\n    for i in $(seq 1 60); do\n        url=$(tailscale status --json 2>/dev/null | jq -r '.AuthURL // empty')\n        if [ -n \"$url\" ]; then\n            break\n        fi\n        sleep 2\n    done\n\n    if [ -z \"$url\" ]; then\n        echo \"tailscale: FAILED to obtain a login URL\" >/dev/console 2>/dev/null || true\n        echo \"tailscale: FAILED to obtain a login URL\" >&2\n        exit 1\n    fi\n\n    echo \"$url\" >/var/lib/tailscale-authurl.txt\n    chmod 0644 /var/lib/tailscale-authurl.txt\n\n    # Publish to the serial console so it reaches Azure boot diagnostics.\n    # Best-effort: the file above is the authoritative copy.\n    printf '\\n===== TAILSCALE LOGIN URL =====\\n%s\\n===============================\\n\\n' \\\n        \"$url\" >/dev/console 2>/dev/null || true\n\nruncmd:\n- cd /home/azureuser/\n- bash tailscale.sh \"$(jq -r '.tskey' env.json)\"\n- echo $(date) > hello.txt\n- chown -R azureuser:azureuser /home/azureuser/\n",
+    "cloudInitTailscaleFormat": "[replace(variables('cloudInitTailscale'), '__ENV_B64__', base64(string(parameters('env'))))]",
     "kvCloudInit": {
       "none": null,
       "tailscale": "[base64(variables('cloudInitTailscaleFormat'))]"
@@ -272,6 +272,11 @@
           },
           "imageReference": "[variables('kvImageReference')[parameters('osImage')]]"
         },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": true
+          }
+        },
         "networkProfile": {
           "networkInterfaces": [
             {
@@ -314,6 +319,20 @@
     "sshCommand": {
       "type": "string",
       "value": "[format('ssh {0}@{1}', parameters('adminUsername'), reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName')), '2023-11-01').dnsSettings.fqdn)]"
+    },
+    "authUrlCommand": {
+      "type": "string",
+      "metadata": {
+        "description": "Fetch the Tailscale login URL when deployed without an auth key."
+      },
+      "value": "[format('az vm run-command invoke --resource-group {0} --name {1} --command-id RunShellScript --scripts \"tailscale-authurl\" --query \"value[0].message\" -o tsv', resourceGroup().name, parameters('vmName'))]"
+    },
+    "authUrlBootLogCommand": {
+      "type": "string",
+      "metadata": {
+        "description": "Same URL via the serial console, no in-VM agent required."
+      },
+      "value": "[format('az vm boot-diagnostics get-boot-log --resource-group {0} --name {1} -o tsv | grep -o \"https://login.tailscale.com/a/[a-z0-9]*\" | tail -1', resourceGroup().name, parameters('vmName'))]"
     }
   }
 }
