@@ -1,0 +1,113 @@
+{
+  "_comment": "Validation ledger. last_validated is asserted by a human or CI that actually ran the lab; it is never derived from git. Set it when you deploy the lab and see it work. See scripts/lab-freshness.sh.",
+  "labs": [
+    {
+      "path": "cloud-native/aks-arm",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/aks-arm64-terraform",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/aks-avm",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/aks-azure-linux",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/aks-byo-models-kaito",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/aks-https",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/aks-kubeflow",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/containerapps-bicep",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/containerapps-github-go",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/containerapps-github-python",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/containerapps-python-fastapi",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "cloud-native/containerapps-terraform",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "linux/vm-azure-linux",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "linux/vm-flatcar-postgres",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "linux/vm-tailscale-terraform",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "linux/vm-tailscale",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "linux/vm",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    },
+    {
+      "path": "linux/vmss",
+      "last_validated": null,
+      "validated_by": null,
+      "method": null
+    }
+  ]
+}
