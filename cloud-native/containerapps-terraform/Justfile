@@ -3,12 +3,12 @@ export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 default:
     @just --list
 
-# Test both services and produce a non-mutating Terraform plan.
+# Vet and test both services, and produce a non-mutating Terraform plan.
 validate:
     #!/usr/bin/env bash
     set -euo pipefail
     for service in go-servicebus-sender go-servicebus-receiver; do
-        (cd "$service" && go test ./...)
+        (cd "$service" && go vet ./... && go test ./...)
     done
     terraform -chdir=terraform init -backend=false -input=false -lockfile=readonly
     terraform -chdir=terraform fmt -check
