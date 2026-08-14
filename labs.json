@@ -3,27 +3,27 @@
   "labs": [
     {
       "path": "cloud-native/aks-arm",
-      "last_validated": "2026-08-13",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "what-if"
     },
     {
       "path": "cloud-native/aks-arm64-terraform",
-      "last_validated": "2022-11-21",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "terraform-plan"
     },
     {
       "path": "cloud-native/aks-avm",
-      "last_validated": "2026-08-13",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "what-if"
     },
     {
       "path": "cloud-native/aks-azure-linux",
-      "last_validated": "2026-08-13",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "what-if"
     },
     {
       "path": "cloud-native/aks-byo-models-kaito",
@@ -51,21 +51,21 @@
     },
     {
       "path": "cloud-native/containerapps-github-go",
-      "last_validated": "2022-06-05",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "links"
     },
     {
       "path": "cloud-native/containerapps-github-python",
-      "last_validated": "2022-06-05",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "links"
     },
     {
       "path": "cloud-native/containerapps-python-fastapi",
-      "last_validated": "2022-06-05",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "links"
     },
     {
       "path": "cloud-native/containerapps-terraform",
@@ -75,9 +75,9 @@
     },
     {
       "path": "linux/vm-azure-linux",
-      "last_validated": "2026-08-13",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "what-if"
     },
     {
       "path": "linux/vm-flatcar-postgres",
@@ -93,21 +93,21 @@
     },
     {
       "path": "linux/vm-tailscale",
-      "last_validated": "2026-08-13",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "what-if"
     },
     {
       "path": "linux/vm",
-      "last_validated": "2026-08-13",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "what-if"
     },
     {
       "path": "linux/vmss",
-      "last_validated": "2026-08-13",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-14",
+      "validated_by": "by=cmbox",
+      "method": "what-if"
     }
   ]
 }
