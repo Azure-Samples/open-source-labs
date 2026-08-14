@@ -31,7 +31,7 @@ Export the selected subscription ID for Terraform.
 export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 ```
 
-Change to the `cloud-native/containerapps-terraform/terraform` subdirectory of this repo and run the Terraform deployment script.
+Change to the `cloud-native/aks-arm64-terraform` subdirectory of this repo and run the Terraform deployment script.
 
 ```bash
 cd cloud-native/aks-arm64-terraform
