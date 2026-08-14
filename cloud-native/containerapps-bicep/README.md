@@ -1,6 +1,6 @@
 # Explore Azure Container Apps, Bicep, and PostgreSQL
 
-In this lab you will deploy Azure Container Apps, Azure Database for PostgreSQL, and other Azure Services (Key Vault, Storage and Managed Identity) with [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://docs.microsoft.com/azure/azure-resource-manager/bicep/overview).
+In this lab you will deploy Azure Container Apps, Azure Database for PostgreSQL, and other Azure Services (Key Vault, Storage and Managed Identity) with [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview).
 
 You will deploy containers from GitHub [Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry) and built with GitHub [Actions](https://docs.github.com/en/actions/publishing-packages/publishing-docker-images#publishing-images-to-github-packages).
 
@@ -23,7 +23,7 @@ The link below will deploy Azure Container Apps, Azure Database for Postgres and
 
 ## Deploy via Azure CLI
 
-Use the [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://docs.microsoft.com/azure/azure-resource-manager/bicep/overview) templates to deploy the infrastructure for your application.
+Use the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview) templates to deploy the infrastructure for your application.
 
 This allows you to deploy the Bicep templates of your choice step-by-step.
 

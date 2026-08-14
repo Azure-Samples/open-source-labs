@@ -1,6 +1,6 @@
 # Explore Azure Linux Container Host for Azure Kubernetes Service (AKS) and GPU workloads
 
-In this lab you will deploy an Azure Kubernetes Service (AKS) cluster with Azure Linux Container Host nodes, a GPU node pool, and other Azure services (Container Registry, Managed Identity, Storage Account), with the [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) and [Bicep](https://docs.microsoft.com/en-us/azure/azure-resource-manager/bicep/overview).
+In this lab you will deploy an Azure Kubernetes Service (AKS) cluster with Azure Linux Container Host nodes, a GPU node pool, and other Azure services (Container Registry, Managed Identity, Storage Account), with the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview).
 
 ## Requirements
 
@@ -11,7 +11,7 @@ In this lab you will deploy an Azure Kubernetes Service (AKS) cluster with Azure
 
 ## Instructions
 
-Use the [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) and [Bicep](https://docs.microsoft.com/en-us/azure/azure-resource-manager/bicep/overview) templates to deploy the infrastructure for your application.
+Use the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview) templates to deploy the infrastructure for your application.
 
 Login to the Azure CLI.
 

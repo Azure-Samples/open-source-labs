@@ -123,7 +123,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-02-01' = {
   }
 }
 
-// via: https://docs.microsoft.com/en-us/azure/azure-resource-manager/bicep/bicep-functions-resource#subscriptionresourceid-example
+// via: https://learn.microsoft.com/azure/azure-resource-manager/bicep/bicep-functions-resource#subscriptionresourceid-example
 var roleDefinitionId = {
   Owner: '8e3af657-a8ff-443c-a75c-2fe8c4bcb635'
   Contributor: 'b24988ac-6180-42a0-ab88-20f7382dd24c'

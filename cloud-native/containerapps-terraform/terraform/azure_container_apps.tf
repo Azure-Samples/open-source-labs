@@ -7,7 +7,7 @@ resource "azurerm_log_analytics_workspace" "aca" {
 }
 
 # https://registry.terraform.io/providers/Azure/azapi/latest/docs
-# https://docs.microsoft.com/en-us/azure/templates/microsoft.app/2022-03-01/managedenvironments?tabs=bicep&pivots=deployment-language-terraform
+# https://learn.microsoft.com/azure/templates/microsoft.app/2022-03-01/managedenvironments?tabs=bicep&pivots=deployment-language-terraform
 resource "azapi_resource" "env" {
   type      = "Microsoft.App/managedEnvironments@2022-03-01"
   name      = "env-${local.resource_name}"
@@ -32,7 +32,7 @@ resource "azapi_resource" "env" {
   })
 }
 
-# https://docs.microsoft.com/en-us/azure/templates/microsoft.app/2022-03-01/containerapps?tabs=bicep&pivots=deployment-language-terraform
+# https://learn.microsoft.com/azure/templates/microsoft.app/2022-03-01/containerapps?tabs=bicep&pivots=deployment-language-terraform
 resource "azapi_resource" "helloworld" {
   type      = "Microsoft.App/containerApps@2022-03-01"
   name      = "helloworld"

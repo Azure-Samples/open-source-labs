@@ -1,7 +1,7 @@
 data "azurerm_subscription" "aca" {}
 data "azurerm_client_config" "aca" {}
 
-# https://docs.microsoft.com/en-us/azure/templates/microsoft.dashboard/grafana?pivots=deployment-language-terraform
+# https://learn.microsoft.com/azure/templates/microsoft.dashboard/grafana?pivots=deployment-language-terraform
 resource "azapi_resource" "amg" {
   type      = "Microsoft.Dashboard/grafana@2022-08-01"
   name      = "amg-${local.resource_name}"
