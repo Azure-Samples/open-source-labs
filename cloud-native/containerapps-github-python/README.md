@@ -7,8 +7,8 @@ Azure Container Apps enables you to run microservices and containerized applicat
 ## Requirements
 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
-- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
-- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli?view=azure-cli-latest)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
 - [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - [Lychee](https://github.com/lycheeverse/lychee)
 - A [GitHub Account](https://github.com)
@@ -60,7 +60,7 @@ az group create \
 
 ## 5. Create Azure Container Apps Environment
 
-[Quickstart (docs.microsoft.com)](https://docs.microsoft.com/en-us/azure/container-apps/get-started-existing-container-image?tabs=bash&pivots=container-apps-private-registry)
+[Quickstart (learn.microsoft.com)](https://learn.microsoft.com/azure/container-apps/get-started-existing-container-image?tabs=bash&pivots=container-apps-private-registry)
 
 ```bash
 az containerapp env create \
@@ -103,4 +103,4 @@ az group delete \
 
 ## Notes
 
-- The two video walkthroughs for section 1 and sections 2-8 based on the Go version of this lab under "Cloud Native" at <https://aka.ms/oss-labs>, but is otherwise identical.
+- The two video walkthroughs for section 1 and sections 2-8 based on the Go version of this lab under "Cloud Native" at <https://github.com/Azure-Samples/open-source-labs>, but is otherwise identical.
