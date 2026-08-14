@@ -30,6 +30,22 @@ export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 default:
     @just --list
 
+# Check generated ARM and preview the subscription deployment.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    diff -u main.json <(az bicep build --file main.bicep --stdout)
+    temp_dir="$(mktemp -d)"
+    trap 'rm -f "$temp_dir/id_rsa" "$temp_dir/id_rsa.pub"; rmdir "$temp_dir"' EXIT
+    ssh-keygen -q -t rsa -b 2048 -N '' -f "$temp_dir/id_rsa"
+    az deployment sub what-if \
+        --location "$LOCATION" \
+        --template-file main.bicep \
+        --parameters \
+            "resourceGroup=$RESOURCE_GROUP" \
+            "sshKey=$(<"$temp_dir/id_rsa.pub")" \
+        --no-pretty-print
+
 # Create the Azure resource group.
 group-create:
     az group create --name "$RESOURCE_GROUP" --location "$LOCATION"

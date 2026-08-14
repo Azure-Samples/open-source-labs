@@ -16,6 +16,25 @@ export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 default:
     @just --list
 
+# Check generated ARM and preview the VM deployment.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    diff -u vm.json <(az bicep build --file vm.bicep --stdout)
+    temp_dir="$(mktemp -d)"
+    trap 'rm -f "$temp_dir/id_rsa" "$temp_dir/id_rsa.pub"; rmdir "$temp_dir"' EXIT
+    ssh-keygen -q -t rsa -b 2048 -N '' -f "$temp_dir/id_rsa"
+    az deployment group what-if \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file vm.bicep \
+        --parameters \
+            "location=$LOCATION" \
+            "vmName=$VM_NAME" \
+            "osImage=$OS_IMAGE" \
+            "sshKey=$(<"$temp_dir/id_rsa.pub")" \
+            "allowIpPort22=127.0.0.1" \
+        --no-pretty-print
+
 # Create the Azure resource group.
 group-create:
     az group create --name "$RESOURCE_GROUP" --location "$LOCATION"

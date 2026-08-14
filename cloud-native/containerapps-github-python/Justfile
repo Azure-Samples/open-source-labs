@@ -1,0 +1,8 @@
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+default:
+    @just --list
+
+# Check outbound links in the lab.
+validate:
+    lychee --no-progress --max-retries 2 README.md

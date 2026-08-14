@@ -8,9 +8,14 @@ export RESOURCE_GROUP := resource_group
 export LOCATION := location
 export AKS_NAME := aks_name
 export K8S_NAMESPACE := k8s_namespace
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 
 default:
     @just --list
+
+# Preview the AKS deployment without changing Azure resources.
+validate:
+    az deployment group what-if --resource-group "$RESOURCE_GROUP" --template-file aks.bicep --parameters "location=$LOCATION" --no-pretty-print
 
 # Create the Azure resource group.
 group-create:

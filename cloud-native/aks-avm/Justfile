@@ -1,0 +1,18 @@
+resource_group := env_var_or_default("RESOURCE_GROUP", "")
+
+export RESOURCE_GROUP := resource_group
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+default:
+    @just --list
+
+# Compile, check generated ARM, and preview the AVM deployment.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${RESOURCE_GROUP:?Set RESOURCE_GROUP to an existing validation resource group}"
+    diff -u aks.json <(az bicep build --file aks.bicep --stdout)
+    az deployment group what-if \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file aks.bicep \
+        --no-pretty-print

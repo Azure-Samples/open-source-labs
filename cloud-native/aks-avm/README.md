@@ -4,6 +4,14 @@ This deliberately minimal lab follows the AVM managed cluster module's [using on
 
 The module is pinned to `0.14.0`. On 2026-08-11, this was verified as the newest release from the upstream [`version.json`](https://github.com/Azure/bicep-registry-modules/blob/main/avm/res/container-service/managed-cluster/version.json) and changelog, and by confirming that its public Microsoft Container Registry OCI manifest exists.
 
+## Requirements
+
+- An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
+- The `diff` utility
+
 Deploy it with:
 
 ```bash

@@ -1,0 +1,12 @@
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+default:
+    @just --list
+
+# Plan the workstation and build the pinned KitOps image.
+validate:
+    terraform -chdir=workstation init -backend=false -input=false -lockfile=readonly
+    terraform -chdir=workstation fmt -check
+    terraform -chdir=workstation validate
+    terraform -chdir=workstation plan -input=false -lock=false -refresh=false
+    docker build --tag labs/kaito-kitops:validate .

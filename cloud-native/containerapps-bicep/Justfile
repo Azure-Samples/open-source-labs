@@ -1,0 +1,25 @@
+resource_group := env_var_or_default("RESOURCE_GROUP", "validate-containerapps-bicep")
+location := env_var_or_default("LOCATION", "eastus")
+
+export RESOURCE_GROUP := resource_group
+export LOCATION := location
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+default:
+    @just --list
+
+# Compile every template, check generated ARM, and preview the subscription deployment.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for template in *.bicep; do
+        az bicep build --file "$template" --stdout >/dev/null
+    done
+    for stem in app containerapp main; do
+        diff -u "$stem.json" <(az bicep build --file "$stem.bicep" --stdout)
+    done
+    az deployment sub what-if \
+        --location "$LOCATION" \
+        --template-file main.bicep \
+        --parameters "resourceGroup=$RESOURCE_GROUP" \
+        --no-pretty-print

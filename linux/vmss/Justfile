@@ -25,6 +25,25 @@ export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 default:
     @just --list
 
+# Check generated ARM and preview the VM scale set deployment.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    diff -u vmss.json <(az bicep build --file vmss.bicep --stdout)
+    az deployment group what-if \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file vmss.bicep \
+        --parameters \
+            "location=$LOCATION" \
+            "vmssName=$VMSS_NAME" \
+            "vmSize=$VMSS_SIZE" \
+            "osDiskSize=$VMSS_OS_DISK_SIZE" \
+            "osImage=$OS_IMAGE" \
+            "allowIpPort22=127.0.0.1" \
+            "instanceCount=$VMSS_INSTANCE_COUNT" \
+            "env=$ENV" \
+        --no-pretty-print
+
 # Create the Azure resource group.
 group-create:
     az group create --name "$RESOURCE_GROUP" --location "$LOCATION"

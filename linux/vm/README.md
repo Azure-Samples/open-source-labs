@@ -12,6 +12,15 @@ You can see how this link is generated in [PORTAL.md](PORTAL.md). It uses the [v
 
 Deploying via the command line, which deploys the Bicep template directly, enables you to easily customize it to your requirements, install the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and follow the steps below. These examples require a Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces)).
 
+## Requirements
+
+- An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
+- The `diff` utility
+- [jq](https://jqlang.github.io/jq/download/)
+
 ## Cloud-init
 
 This template uses [cloud-init](https://cloudinit.readthedocs.io/en/latest/), _the industry standard multi-distribution method for cross-platform cloud instance initialization_.
