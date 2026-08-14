@@ -223,8 +223,8 @@ resource "azapi_resource" "receiver" {
               custom = {
                 type = "azure-servicebus"
                 metadata = {
-                  queueName   = azurerm_servicebus_queue.aca.name
-                  namespace   = azurerm_servicebus_namespace.aca.name
+                  queueName    = azurerm_servicebus_queue.aca.name
+                  namespace    = azurerm_servicebus_namespace.aca.name
                   messageCount = "5"
                 }
                 auth = [
