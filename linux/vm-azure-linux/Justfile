@@ -1,7 +1,7 @@
 resource_group := env_var_or_default("RESOURCE_GROUP", `date +%Y-%m` + "-vm-azure-linux")
 location := env_var_or_default("LOCATION", "canadacentral")
 vm_name := env_var_or_default("VM_NAME", "vm1")
-os_image := env_var_or_default("OS_IMAGE", "Azure Linux 3")
+os_image := env_var_or_default("OS_IMAGE", "Azure Linux 4")
 ssh_key := env_var_or_default("SSH_KEY", "")
 ip_allow := env_var_or_default("IP_ALLOW", "")
 
