@@ -12,14 +12,15 @@ To complete this lab you will need to following:
 - [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - The [Terraform CLI](https://developer.hashicorp.com/terraform/downloads)
 - A [Tailscale account](https://login.tailscale.com/start)
-  - Your [Tailscale API key](https://login.tailscale.com/admin/settings/keys) to automatically generate authentication keys for your machines to be able to join your Tailnet (see [Tailscale API](https://tailscale.com/kb/1101/api/?q=api%20key) for more information)
-  - Your unique [Tailnet organization name](https://tailscale.com/kb/1217/tailnet-name/#organization-name) (optional)
+  - Optionally, a [Tailscale API key](https://login.tailscale.com/admin/settings/keys) and your [Tailnet organization name](https://tailscale.com/kb/1217/tailnet-name/#organization-name) to join the VM automatically
 
 ## How to do it
 
 The Terraform configuration has been parameterized so that you can pass in user specific values at runtime. The variables are defined in the [`variables.tf`](./variables.tf) file. Open the file and take a look at some of the values you can pass in.
 
-All of the variables except for `tailnet_name` and `tailscale_api_key` have a default value. Since the Tailscale variables are unique and sensitive to your deployment, you can pass values in at runtime using a `terraform.tfvars` file.
+All variables have default values. Without Tailscale API credentials, the VM starts in interactive-login mode. To join the VM automatically instead, provide both `tailnet_name` and `tailscale_api_key` using a `terraform.tfvars` file.
+
+By default, Terraform creates a resource group in the `location` you select. To deploy into an existing resource group instead, set `resource_group_name` in `terraform.tfvars`; the existing group's location takes precedence over `location`. For `just validate`, you can set the same value through the `RESOURCE_GROUP` environment variable.
 
 Create a new `terraform.tfvars` file in the same location as the [`main.tf`](./main.tf) file and add the following entries.
 
@@ -32,6 +33,22 @@ The `tailnet_name` value is populated with your `Organization` from the [General
 
 Also note the `tailscale_api_key` is populated with the Tailscale `API key` from the [Keys](https://login.tailscale.com/admin/settings/keys) page, and not an `Auth key`. You can also set this key to expire in as little as 1 day.
 
+## Without an auth key
+
+The API credentials are optional. Leave both `tailnet_name` and `tailscale_api_key` unset and the VM brings Tailscale up in interactive-login mode, captures the login URL that `tailscale up` prints, and writes it to `/var/lib/tailscale-authurl.txt`.
+
+After `terraform apply` completes, fetch the login URL with the ready-to-run command exposed by Terraform:
+
+```bash
+eval "$(terraform output -raw auth_url_command)"
+```
+
+The command uses Azure VM Run Command to execute the installed `tailscale-authurl` helper. Open the returned URL in a browser and approve the machine. If the URL has expired, mint a fresh one with:
+
+```bash
+eval "$(terraform output -raw auth_url_command | sed 's/tailscale-authurl/tailscale-authurl --refresh/')"
+```
+
 If you'd like to further customize the deployment, you can add additional values for the variables defined in `variables.tf`.
 
 Here is an example:
@@ -40,6 +57,7 @@ Here is an example:
 # example terraform.tfvars file
 tailnet_name            = "-"
 tailscale_api_key       = "<YOUR_TAILSCALE_API_KEY>"
+resource_group_name     = "<EXISTING_RESOURCE_GROUP>"
 location                = "westus3"
 vnet_address_space      = "10.21.0.0/28"
 snet_address_space      = "10.21.0.0/28"
@@ -98,11 +116,11 @@ The [`main.tf`](./main.tf) file uses the following providers:
 
 The deployment will first generate a [`random_pet`](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/pet) name which will be used to name your Azure resources. This is good for lab environments that will be thrown away.
 
-Then a new [resource group](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group) will be provisioned and resources that support an [virtual machine](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/linux_virtual_machine) will be created including a [virtual network](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_network), a [subnet](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/subnet), and a [network security group assigned](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_security_group) to the subnet. As part of the network security group configuration, an inbound [network security rule](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_security_group#security_rule) will be added to allow Tailscale to communicate with your machine using UDP on port 41641.
+Unless `resource_group_name` is set, a new [resource group](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group) will be provisioned. Otherwise, the deployment uses the named group and its location. Resources that support a [virtual machine](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/linux_virtual_machine) will be created, including a [virtual network](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_network), a [subnet](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/subnet), and a [network security group assigned](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_security_group) to the subnet. As part of the network security group configuration, an inbound [network security rule](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/network_security_group#security_rule) will be added to allow Tailscale to communicate with your machine using UDP on port 41641.
 
 A new [SSH key pair](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) will be generated and the public key will be assigned to the [`azurerm_ssh_public_key`](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/ssh_public_key) resource and the private key will be assigned to the Linux virtual machine; however, this key pair is not actually used since Tailscale will provide authentication for SSH access.
 
-A new one-time, pre-authorized [Tailscale authorization key](https://registry.terraform.io/providers/tailscale/tailscale/latest/docs/resources/tailnet_key) will be generated and passed into the [`cloud-init`](https://registry.terraform.io/providers/hashicorp/cloudinit/latest/docs/data-sources/cloudinit_config) configuration which will be passed in as [custom data](https://learn.microsoft.com/azure/virtual-machines/custom-data) on the virtual machine. The cloud-init config combines two resources as a multipart MIME archive. By default this archive is Gzip compressed and base64 encoded.
+When both Tailscale API variables are set, a new one-time, pre-authorized [Tailscale authorization key](https://registry.terraform.io/providers/tailscale/tailscale/latest/docs/resources/tailnet_key) is generated and passed into the [`cloud-init`](https://registry.terraform.io/providers/hashicorp/cloudinit/latest/docs/data-sources/cloudinit_config) configuration. When both variables are empty, no authorization key is generated and cloud-init instead publishes an interactive login URL. The cloud-init config is passed as [custom data](https://learn.microsoft.com/azure/virtual-machines/custom-data) on the virtual machine and combines two resources as a Gzip-compressed, base64-encoded multipart MIME archive.
 
 > NOTE: Azure requires custom data be base64 encoded and cannot exceed 64KB in size.
 
@@ -110,7 +128,7 @@ Two pieces of configuration is passed to the virtual machine's custom data to de
 
 The **cloud-config data** is a simple [`tailscale.yml`](./tailscale.yml) YAML file which instructs the VM to create a file named `/var/tmp/hello-world.txt` which contains the text "Hello, World!".
 
-To install and configure Tailscale, **user-data script** executes the [`tailscale.sh`](./tailscale.sh) script. This particular data types uses a [`part`](https://registry.terraform.io/providers/hashicorp/cloudinit/latest/docs/data-sources/cloudinit_config#part) to load the bash script as template file. If you notice in the script, there is a placeholder for `${tailscale_auth_key}`. This is passed into the script at runtime with the value that was generated by the `tailscale_tailnet_key` resource.
+To install and configure Tailscale, **user-data script** executes the [`tailscale.sh`](./tailscale.sh) script. This data type uses a [`part`](https://registry.terraform.io/providers/hashicorp/cloudinit/latest/docs/data-sources/cloudinit_config#part) to load the Bash script as a template. Its `tailscale_auth_key` placeholder receives either the generated `tailscale_tailnet_key` value or an empty string that selects interactive login.
 
 The multipart archive cloud-init configuration is then passed into the [`custom_data`](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/linux_virtual_machine#custom_data) property of the [Linux virtual machine resource](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/linux_virtual_machine).
 

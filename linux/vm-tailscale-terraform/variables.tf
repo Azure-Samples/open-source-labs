@@ -1,18 +1,26 @@
 variable "tailnet_name" {
   type        = string
-  description = "Tailnet name"
+  description = "Tailnet name; leave empty with tailscale_api_key for interactive login"
+  default     = ""
 }
 
 variable "tailscale_api_key" {
   type        = string
   sensitive   = true
-  description = "Tailscale API key"
+  description = "Tailscale API key; leave empty with tailnet_name for interactive login"
+  default     = ""
 }
 
 variable "location" {
   type        = string
   description = "Azure region to deploy resources into"
   default     = "westus3"
+}
+
+variable "resource_group_name" {
+  type        = string
+  description = "Deploy into this existing resource group; leave empty to create one."
+  default     = ""
 }
 
 variable "tags" {

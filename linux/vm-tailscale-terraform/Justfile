@@ -1,8 +1,10 @@
 tailnet_name := env_var_or_default("TAILNET_NAME", "")
 tailscale_api_key := env_var_or_default("TAILSCALE_API_KEY", "")
+resource_group := env_var_or_default("RESOURCE_GROUP", "")
 
 export TF_VAR_tailnet_name := tailnet_name
 export TF_VAR_tailscale_api_key := tailscale_api_key
+export TF_VAR_resource_group_name := resource_group
 export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 
 default:
@@ -12,8 +14,10 @@ default:
 validate:
     #!/usr/bin/env bash
     set -euo pipefail
-    : "${TF_VAR_tailnet_name:?Set TAILNET_NAME}"
-    : "${TF_VAR_tailscale_api_key:?Set TAILSCALE_API_KEY}"
+    if [[ -n "$TF_VAR_tailnet_name" || -n "$TF_VAR_tailscale_api_key" ]]; then
+        : "${TF_VAR_tailnet_name:?Set TAILNET_NAME when TAILSCALE_API_KEY is set}"
+        : "${TF_VAR_tailscale_api_key:?Set TAILSCALE_API_KEY when TAILNET_NAME is set}"
+    fi
     terraform init -backend=false -input=false -lockfile=readonly
     terraform fmt -check
     terraform validate
