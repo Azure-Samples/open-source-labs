@@ -9,7 +9,7 @@
     },
     {
       "path": "cloud-native/aks-arm64-terraform",
-      "last_validated": "2026-08-14",
+      "last_validated": "2026-08-15",
       "validated_by": "by=cmbox",
       "method": "terraform-plan"
     },
