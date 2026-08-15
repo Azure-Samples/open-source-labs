@@ -1,148 +1,148 @@
 {
-    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-    "contentVersion": "1.0.0.0",
-    "metadata": {
-      "_generator": {
-        "name": "bicep",
-        "version": "0.12.40.16777",
-        "templateHash": "6327375882688492047"
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "8584806025743018266"
+    }
+  },
+  "parameters": {
+    "env_name": {
+      "type": "string",
+      "defaultValue": "my-environment"
+    },
+    "app_name": {
+      "type": "string",
+      "defaultValue": "my-container-app"
+    },
+    "app_image": {
+      "type": "string",
+      "defaultValue": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    }
+  },
+  "variables": {
+    "rand": "[substring(uniqueString(resourceGroup().id), 0, 6)]",
+    "roleAssignmentAcrPull": "7f951dda-4ed3-4680-a7ca-43fe172d538d",
+    "logAnalyticsWorkspaceName": "[format('{0}-logs', parameters('env_name'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2018-11-30",
+      "name": "[format('{0}-identity', resourceGroup().name)]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2019-05-01",
+      "name": "[format('acr{0}', variables('rand'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "adminUserEnabled": false
       }
     },
-    "parameters": {
-      "env_name": {
-        "type": "string",
-        "defaultValue": "my-environment"
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', format('acr{0}', variables('rand')))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', format('acr{0}', variables('rand'))), variables('roleAssignmentAcrPull'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleAssignmentAcrPull'))]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', resourceGroup().name)), '2018-11-30').principalId]"
       },
-      "app_name": {
-        "type": "string",
-        "defaultValue": "my-container-app"
-      },
-      "app_image": {
-        "type": "string",
-        "defaultValue": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
-      },
-      "location": {
-        "type": "string",
-        "defaultValue": "[resourceGroup().location]"
-      }
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', format('acr{0}', variables('rand')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', resourceGroup().name))]"
+      ]
     },
-    "variables": {
-      "rand": "[substring(uniqueString(resourceGroup().id), 0, 6)]",
-      "roleAssignmentAcrPull": "7f951dda-4ed3-4680-a7ca-43fe172d538d",
-      "logAnalyticsWorkspaceName": "[format('{0}-logs', parameters('env_name'))]"
-    },
-    "resources": [
-      {
-        "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
-        "apiVersion": "2018-11-30",
-        "name": "[format('{0}-identity', resourceGroup().name)]",
-        "location": "[parameters('location')]"
-      },
-      {
-        "type": "Microsoft.ContainerRegistry/registries",
-        "apiVersion": "2019-05-01",
-        "name": "[format('acr{0}', variables('rand'))]",
-        "location": "[parameters('location')]",
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2026-03-01",
+      "name": "[variables('logAnalyticsWorkspaceName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "retentionInDays": 30,
+        "features": {
+          "searchVersion": 1
+        },
         "sku": {
-          "name": "Standard"
-        },
-        "properties": {
-          "adminUserEnabled": false
+          "name": "PerGB2018"
         }
-      },
-      {
-        "type": "Microsoft.Authorization/roleAssignments",
-        "apiVersion": "2020-08-01-preview",
-        "scope": "[format('Microsoft.ContainerRegistry/registries/{0}', format('acr{0}', variables('rand')))]",
-        "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', format('acr{0}', variables('rand'))), variables('roleAssignmentAcrPull'))]",
-        "properties": {
-          "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleAssignmentAcrPull'))]",
-          "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', resourceGroup().name)), '2018-11-30').principalId]"
-        },
-        "dependsOn": [
-          "[resourceId('Microsoft.ContainerRegistry/registries', format('acr{0}', variables('rand')))]",
-          "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', resourceGroup().name))]"
-        ]
-      },
-      {
-        "type": "Microsoft.OperationalInsights/workspaces",
-        "apiVersion": "2020-03-01-preview",
-        "name": "[variables('logAnalyticsWorkspaceName')]",
-        "location": "[parameters('location')]",
-        "properties": {
-          "retentionInDays": 30,
-          "features": {
-            "searchVersion": 1
-          },
-          "sku": {
-            "name": "PerGB2018"
-          }
-        }
-      },
-      {
-        "type": "Microsoft.App/managedEnvironments",
-        "apiVersion": "2022-06-01-preview",
-        "name": "[parameters('env_name')]",
-        "location": "[parameters('location')]",
-        "properties": {
-          "appLogsConfiguration": {
-            "destination": "log-analytics",
-            "logAnalyticsConfiguration": {
-              "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsWorkspaceName')), '2020-03-01-preview').customerId]",
-              "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsWorkspaceName')), '2020-03-01-preview').primarySharedKey]"
-            }
-          }
-        },
-        "dependsOn": [
-          "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsWorkspaceName'))]"
-        ]
-      },
-      {
-        "type": "Microsoft.App/containerApps",
-        "apiVersion": "2022-06-01-preview",
-        "name": "my-container-app",
-        "location": "[parameters('location')]",
-        "identity": {
-          "type": "UserAssigned",
-          "userAssignedIdentities": {
-            "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', resourceGroup().name)))]": {}
-          }
-        },
-        "properties": {
-          "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('env_name'))]",
-          "configuration": {
-            "ingress": {
-              "external": true,
-              "targetPort": 80
-            },
-            "registries": [
-              {
-                "server": "[format('acr{0}.azurecr.io', variables('rand'))]",
-                "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', resourceGroup().name))]"
-              }
-            ]
-          },
-          "template": {
-            "containers": [
-              {
-                "image": "[parameters('app_image')]",
-                "name": "[parameters('app_name')]",
-                "resources": {
-                  "cpu": "[json('0.5')]",
-                  "memory": "1.0Gi"
-                }
-              }
-            ],
-            "scale": {
-              "minReplicas": 1,
-              "maxReplicas": 1
-            }
-          }
-        },
-        "dependsOn": [
-          "[resourceId('Microsoft.App/managedEnvironments', parameters('env_name'))]",
-          "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', resourceGroup().name))]"
-        ]
       }
-    ]
-  }
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2026-01-01",
+      "name": "[parameters('env_name')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsWorkspaceName')), '2026-03-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsWorkspaceName')), '2026-03-01').primarySharedKey]"
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsWorkspaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2026-01-01",
+      "name": "my-container-app",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', resourceGroup().name)))]": {}
+        }
+      },
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('env_name'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 80
+          },
+          "registries": [
+            {
+              "server": "[format('acr{0}.azurecr.io', variables('rand'))]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', resourceGroup().name))]"
+            }
+          ]
+        },
+        "template": {
+          "containers": [
+            {
+              "image": "[parameters('app_image')]",
+              "name": "[parameters('app_name')]",
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1.0Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 1
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', parameters('env_name'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', resourceGroup().name))]"
+      ]
+    }
+  ]
+}
