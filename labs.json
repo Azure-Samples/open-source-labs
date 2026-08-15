@@ -5,109 +5,147 @@
       "path": "cloud-native/aks-arm",
       "last_validated": "2026-08-15",
       "validated_by": "cmbox",
-      "method": "what-if"
+      "method": "arm-diff+what-if",
+      "required": "arm-diff+what-if"
     },
     {
       "path": "cloud-native/aks-arm64-terraform",
       "last_validated": "2026-08-15",
       "validated_by": "cmbox",
-      "method": "terraform-plan"
+      "method": "terraform-plan",
+      "required": "terraform-plan"
     },
     {
       "path": "cloud-native/aks-avm",
-      "last_validated": "2026-08-14",
+      "last_validated": "2026-08-15",
       "validated_by": "cmbox",
-      "method": "what-if"
+      "method": "arm-diff+what-if",
+      "required": "arm-diff+what-if"
     },
     {
       "path": "cloud-native/aks-azure-linux",
-      "last_validated": "2026-08-14",
+      "last_validated": "2026-08-15",
       "validated_by": "cmbox",
-      "method": "what-if"
+      "method": "what-if",
+      "required": "what-if"
     },
     {
       "path": "cloud-native/aks-byo-models-kaito",
-      "last_validated": "2025-06-12",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-15",
+      "validated_by": "cmbox",
+      "method": "terraform-plan",
+      "required": "terraform-plan"
     },
     {
       "path": "cloud-native/aks-https",
       "last_validated": "2022-08-25",
       "validated_by": null,
-      "method": "inferred"
+      "method": "inferred",
+      "required": "what-if",
+      "blocked": {
+        "reason": "out-of-scope",
+        "note": "excluded from this modernization"
+      }
     },
     {
       "path": "cloud-native/aks-kubeflow",
       "last_validated": "2026-08-13",
       "validated_by": null,
-      "method": "inferred"
+      "method": "inferred",
+      "required": "what-if",
+      "blocked": {
+        "reason": "out-of-scope",
+        "note": "excluded from this modernization"
+      }
     },
     {
       "path": "cloud-native/containerapps-bicep",
       "last_validated": "2022-12-02",
       "validated_by": null,
-      "method": "inferred"
+      "method": "inferred",
+      "required": "arm-diff+what-if",
+      "blocked": {
+        "reason": "subscription-scope",
+        "note": "recipe uses az deployment sub what-if; credentials here are resource-group scoped"
+      }
     },
     {
       "path": "cloud-native/containerapps-github-go",
       "last_validated": "2026-08-14",
       "validated_by": "cmbox",
-      "method": "links"
+      "method": "links",
+      "required": "links"
     },
     {
       "path": "cloud-native/containerapps-github-python",
       "last_validated": "2026-08-14",
       "validated_by": "cmbox",
-      "method": "links"
+      "method": "links",
+      "required": "links"
     },
     {
       "path": "cloud-native/containerapps-python-fastapi",
       "last_validated": "2026-08-14",
       "validated_by": "cmbox",
-      "method": "links"
+      "method": "links",
+      "required": "links"
     },
     {
       "path": "cloud-native/containerapps-terraform",
-      "last_validated": "2022-09-21",
-      "validated_by": null,
-      "method": "inferred"
+      "last_validated": "2026-08-15",
+      "validated_by": "cmbox",
+      "method": "terraform-plan+go-vet",
+      "required": "terraform-plan+go-vet"
     },
     {
       "path": "linux/vm-azure-linux",
-      "last_validated": "2026-08-14",
+      "last_validated": "2026-08-15",
       "validated_by": "cmbox",
-      "method": "what-if"
+      "method": "arm-diff+deploy",
+      "required": "arm-diff+what-if"
     },
     {
       "path": "linux/vm-flatcar-postgres",
       "last_validated": "2026-08-13",
       "validated_by": null,
-      "method": "inferred"
+      "method": "inferred",
+      "required": "arm-diff+what-if",
+      "blocked": {
+        "reason": "subscription-scope",
+        "note": "recipe uses az deployment sub what-if; credentials here are resource-group scoped"
+      }
     },
     {
       "path": "linux/vm-tailscale-terraform",
       "last_validated": "2022-11-21",
       "validated_by": null,
-      "method": "inferred"
+      "method": "inferred",
+      "required": "terraform-plan",
+      "blocked": {
+        "reason": "missing-credential",
+        "note": "validate requires TF_VAR_tailnet_name and TF_VAR_tailscale_api_key"
+      }
     },
     {
       "path": "linux/vm-tailscale",
-      "last_validated": "2026-08-14",
+      "last_validated": "2026-08-15",
       "validated_by": "cmbox",
-      "method": "what-if"
+      "method": "arm-diff+deploy",
+      "required": "arm-diff+what-if"
     },
     {
       "path": "linux/vm",
-      "last_validated": "2026-08-14",
+      "last_validated": "2026-08-15",
       "validated_by": "cmbox",
-      "method": "what-if"
+      "method": "arm-diff+deploy",
+      "required": "arm-diff+what-if"
     },
     {
       "path": "linux/vmss",
-      "last_validated": "2026-08-14",
+      "last_validated": "2026-08-15",
       "validated_by": "cmbox",
-      "method": "what-if"
+      "method": "arm-diff+deploy",
+      "required": "arm-diff+what-if"
     }
   ]
 }
