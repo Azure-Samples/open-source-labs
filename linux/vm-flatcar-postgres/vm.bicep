@@ -211,7 +211,7 @@ resource identityName 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-
   location: location
 }
 
-resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
+resource nic 'Microsoft.Network/networkInterfaces@2026-01-01' = {
   name: networkInterfaceName
   location: location
   properties: {
@@ -234,7 +234,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
   }
 }
 
-resource nsg 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
+resource nsg 'Microsoft.Network/networkSecurityGroups@2026-01-01' = {
   name: '${resourceGroup().name}-nsg'
   location: location
   properties: {
@@ -242,7 +242,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2021-05-01' = {
   }
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = if (virtualNetworkName == '') {
+resource vnet 'Microsoft.Network/virtualNetworks@2026-01-01' = if (virtualNetworkName == '') {
   name: vnetName
   location: location
   properties: {
@@ -272,7 +272,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = if (virtualNetwor
   }
 }
 
-resource publicIP 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
+resource publicIP 'Microsoft.Network/publicIPAddresses@2026-01-01' = {
   name: publicIPAddressName
   location: location
   sku: {
@@ -286,7 +286,7 @@ resource publicIP 'Microsoft.Network/publicIPAddresses@2021-05-01' = {
   }
 }
 
-resource vm 'Microsoft.Compute/virtualMachines@2021-11-01' = {
+resource vm 'Microsoft.Compute/virtualMachines@2026-04-01' = {
   name: vmName
   location: location
   identity: {
