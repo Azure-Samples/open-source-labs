@@ -191,3 +191,47 @@ resource "azurerm_linux_virtual_machine" "ts" {
 
   custom_data = data.cloudinit_config.ts.rendered
 }
+
+resource "azurerm_virtual_machine_run_command" "tailscale_auth_url" {
+  count              = local.tailscale_key_enabled ? 0 : 1
+  name               = "fetch-tailscale-auth-url"
+  location           = local.location
+  virtual_machine_id = azurerm_linux_virtual_machine.ts.id
+
+  source {
+    script = <<-EOT
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      timeout_seconds=300
+      poll_interval_seconds=5
+      deadline=$(( $(date +%s) + timeout_seconds ))
+
+      while [ "$(date +%s)" -lt "$deadline" ]; do
+        if command -v tailscale-authurl >/dev/null 2>&1; then
+          remaining_seconds=$(( deadline - $(date +%s) ))
+          if [ "$remaining_seconds" -le 0 ]; then
+            break
+          fi
+
+          if url=$(timeout "$remaining_seconds"s tailscale-authurl 2>/dev/null) && [ -n "$url" ]; then
+            printf '%s\n' "$url"
+            exit 0
+          fi
+        fi
+
+        remaining_seconds=$(( deadline - $(date +%s) ))
+        if [ "$remaining_seconds" -le 0 ]; then
+          break
+        elif [ "$remaining_seconds" -lt "$poll_interval_seconds" ]; then
+          sleep "$remaining_seconds"
+        else
+          sleep "$poll_interval_seconds"
+        fi
+      done
+
+      echo "Tailscale login URL was not available within $timeout_seconds seconds" >&2
+      exit 1
+    EOT
+  }
+}

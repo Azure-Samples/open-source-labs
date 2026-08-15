@@ -35,15 +35,19 @@ Also note the `tailscale_api_key` is populated with the Tailscale `API key` from
 
 ## Without an auth key
 
-The API credentials are optional. Leave both `tailnet_name` and `tailscale_api_key` unset and the VM brings Tailscale up in interactive-login mode, captures the login URL that `tailscale up` prints, and writes it to `/var/lib/tailscale-authurl.txt`.
+The API credentials are optional. Leave both `tailnet_name` and `tailscale_api_key` unset and the VM brings Tailscale up in interactive-login mode, captures the login URL that `tailscale up` prints, and writes it to `/var/lib/tailscale-authurl.txt`. During apply, Terraform waits up to five minutes for that URL and exposes it as the `tailscale_auth_url` output value:
 
-After `terraform apply` completes, fetch the login URL with the ready-to-run command exposed by Terraform:
+```bash
+terraform output -raw tailscale_auth_url
+```
+
+Open the returned URL in a browser and approve the machine. Because this value is a snapshot captured during apply, Terraform also exposes `auth_url_command`, a command you can run later to re-fetch the current URL:
 
 ```bash
 eval "$(terraform output -raw auth_url_command)"
 ```
 
-The command uses Azure VM Run Command to execute the installed `tailscale-authurl` helper. Open the returned URL in a browser and approve the machine. If the URL has expired, mint a fresh one with:
+The command uses Azure VM Run Command to execute the installed `tailscale-authurl` helper. If the URL has expired, mint a fresh one with:
 
 ```bash
 eval "$(terraform output -raw auth_url_command | sed 's/tailscale-authurl/tailscale-authurl --refresh/')"

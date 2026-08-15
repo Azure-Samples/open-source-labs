@@ -8,6 +8,11 @@ output "ssh_command" {
 }
 
 output "auth_url_command" {
-  description = "Fetch the Tailscale login URL when deployed without Tailscale API credentials."
+  description = "Command to re-fetch the Tailscale login URL when deployed without Tailscale API credentials."
   value       = "az vm run-command invoke --resource-group ${local.resource_group_name} --name ${azurerm_linux_virtual_machine.ts.name} --command-id RunShellScript --scripts \"tailscale-authurl\" --query \"value[0].message\" -o tsv"
+}
+
+output "tailscale_auth_url" {
+  description = "Tailscale login URL captured during apply when deployed without Tailscale API credentials."
+  value       = try(trimspace(azurerm_virtual_machine_run_command.tailscale_auth_url[0].instance_view[0].output), null)
 }
