@@ -7,9 +7,9 @@ resource "azurerm_log_analytics_workspace" "aca" {
 }
 
 # https://registry.terraform.io/providers/Azure/azapi/latest/docs
-# https://learn.microsoft.com/azure/templates/microsoft.app/2022-03-01/managedenvironments?tabs=bicep&pivots=deployment-language-terraform
+# https://learn.microsoft.com/azure/templates/microsoft.app/2026-01-01/managedenvironments?tabs=bicep&pivots=deployment-language-terraform
 resource "azapi_resource" "env" {
-  type      = "Microsoft.App/managedEnvironments@2022-03-01"
+  type      = "Microsoft.App/managedEnvironments@2026-01-01"
   name      = "env-${local.resource_name}"
   parent_id = azurerm_resource_group.aca.id
   location  = azurerm_resource_group.aca.location
@@ -32,9 +32,9 @@ resource "azapi_resource" "env" {
   }
 }
 
-# https://learn.microsoft.com/azure/templates/microsoft.app/2022-03-01/containerapps?tabs=bicep&pivots=deployment-language-terraform
+# https://learn.microsoft.com/azure/templates/microsoft.app/2026-01-01/containerapps?tabs=bicep&pivots=deployment-language-terraform
 resource "azapi_resource" "helloworld" {
-  type      = "Microsoft.App/containerApps@2022-03-01"
+  type      = "Microsoft.App/containerApps@2026-01-01"
   name      = "helloworld"
   parent_id = azurerm_resource_group.aca.id
   location  = azurerm_resource_group.aca.location
@@ -91,7 +91,7 @@ resource "azapi_resource" "helloworld" {
 }
 
 resource "azapi_resource" "sender" {
-  type      = "Microsoft.App/containerApps@2022-03-01"
+  type      = "Microsoft.App/containerApps@2026-01-01"
   name      = "go-servicebus-sender"
   parent_id = azurerm_resource_group.aca.id
   location  = azurerm_resource_group.aca.location
@@ -160,7 +160,7 @@ resource "azapi_resource" "sender" {
 }
 
 resource "azapi_resource" "receiver" {
-  type      = "Microsoft.App/containerApps@2022-03-01"
+  type      = "Microsoft.App/containerApps@2026-01-01"
   name      = "go-servicebus-receiver"
   parent_id = azurerm_resource_group.aca.id
   location  = azurerm_resource_group.aca.location
