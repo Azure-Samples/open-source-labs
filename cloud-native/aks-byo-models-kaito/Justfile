@@ -1,4 +1,6 @@
 export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+resource_group := env_var_or_default("RESOURCE_GROUP", "")
+export TF_VAR_resource_group_name := resource_group
 
 default:
     @just --list

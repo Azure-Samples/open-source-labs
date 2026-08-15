@@ -1,7 +1,7 @@
 resource "azurerm_log_analytics_workspace" "aca" {
   name                = "law-${local.resource_name_unique}"
-  resource_group_name = azurerm_resource_group.aca.name
-  location            = azurerm_resource_group.aca.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
   sku                 = "PerGB2018"
   retention_in_days   = 30
 }
@@ -11,8 +11,8 @@ resource "azurerm_log_analytics_workspace" "aca" {
 resource "azapi_resource" "env" {
   type      = "Microsoft.App/managedEnvironments@2026-01-01"
   name      = "env-${local.resource_name}"
-  parent_id = azurerm_resource_group.aca.id
-  location  = azurerm_resource_group.aca.location
+  parent_id = local.resource_group_id
+  location  = local.location
 
   body = {
     properties = {
@@ -36,8 +36,8 @@ resource "azapi_resource" "env" {
 resource "azapi_resource" "helloworld" {
   type      = "Microsoft.App/containerApps@2026-01-01"
   name      = "helloworld"
-  parent_id = azurerm_resource_group.aca.id
-  location  = azurerm_resource_group.aca.location
+  parent_id = local.resource_group_id
+  location  = local.location
 
   body = {
     properties = {
@@ -93,8 +93,8 @@ resource "azapi_resource" "helloworld" {
 resource "azapi_resource" "sender" {
   type      = "Microsoft.App/containerApps@2026-01-01"
   name      = "go-servicebus-sender"
-  parent_id = azurerm_resource_group.aca.id
-  location  = azurerm_resource_group.aca.location
+  parent_id = local.resource_group_id
+  location  = local.location
   identity {
     type = "UserAssigned"
     identity_ids = [
@@ -162,8 +162,8 @@ resource "azapi_resource" "sender" {
 resource "azapi_resource" "receiver" {
   type      = "Microsoft.App/containerApps@2026-01-01"
   name      = "go-servicebus-receiver"
-  parent_id = azurerm_resource_group.aca.id
-  location  = azurerm_resource_group.aca.location
+  parent_id = local.resource_group_id
+  location  = local.location
   identity {
     type = "UserAssigned"
     identity_ids = [

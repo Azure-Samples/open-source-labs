@@ -70,10 +70,18 @@ resource "random_string" "aca" {
 locals {
   resource_name        = format("%s", random_pet.aca.id)
   resource_name_unique = format("%s%s", random_pet.aca.id, random_integer.aca.result)
-  location             = var.location
+  resource_group_id    = var.resource_group_name == "" ? azurerm_resource_group.aca[0].id : data.azurerm_resource_group.aca[0].id
+  resource_group_name  = var.resource_group_name == "" ? azurerm_resource_group.aca[0].name : data.azurerm_resource_group.aca[0].name
+  location             = var.resource_group_name == "" ? var.location : data.azurerm_resource_group.aca[0].location
+}
+
+data "azurerm_resource_group" "aca" {
+  count = var.resource_group_name == "" ? 0 : 1
+  name  = var.resource_group_name
 }
 
 resource "azurerm_resource_group" "aca" {
+  count    = var.resource_group_name == "" ? 1 : 0
   name     = "rg-${local.resource_name}"
   location = local.location
 

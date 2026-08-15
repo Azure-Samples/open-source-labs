@@ -41,7 +41,9 @@ provider "azurerm" {
 }
 
 locals {
-  random_name = "lab${random_integer.example.result}"
+  random_name         = "lab${random_integer.example.result}"
+  resource_group_name = var.resource_group_name == "" ? azurerm_resource_group.example[0].name : data.azurerm_resource_group.example[0].name
+  location            = var.resource_group_name == "" ? var.location : data.azurerm_resource_group.example[0].location
 }
 
 data "cloudinit_config" "example" {
@@ -79,7 +81,13 @@ resource "random_integer" "example" {
   max = 99
 }
 
+data "azurerm_resource_group" "example" {
+  count = var.resource_group_name == "" ? 0 : 1
+  name  = var.resource_group_name
+}
+
 resource "azurerm_resource_group" "example" {
+  count    = var.resource_group_name == "" ? 1 : 0
   name     = "rg-${local.random_name}"
   location = var.location
 }
@@ -87,21 +95,21 @@ resource "azurerm_resource_group" "example" {
 resource "azurerm_virtual_network" "example" {
   name                = "vnet-${local.random_name}"
   address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+  location            = local.location
+  resource_group_name = local.resource_group_name
 }
 
 resource "azurerm_subnet" "example" {
   name                 = "internal"
-  resource_group_name  = azurerm_resource_group.example.name
+  resource_group_name  = local.resource_group_name
   virtual_network_name = azurerm_virtual_network.example.name
   address_prefixes     = ["10.0.2.0/24"]
 }
 
 resource "azurerm_network_security_group" "example" {
   name                = "nsg-${local.random_name}"
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+  location            = local.location
+  resource_group_name = local.resource_group_name
 
   security_rule {
     name                       = "SSH"
@@ -123,16 +131,16 @@ resource "azurerm_subnet_network_security_group_association" "example" {
 
 resource "azurerm_public_ip" "example" {
   name                = "pip-${local.random_name}"
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+  location            = local.location
+  resource_group_name = local.resource_group_name
   allocation_method   = "Static"
   sku                 = "Standard"
 }
 
 resource "azurerm_network_interface" "example" {
   name                = "nic-${local.random_name}"
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+  location            = local.location
+  resource_group_name = local.resource_group_name
 
   ip_configuration {
     name                          = "internal"
@@ -144,8 +152,8 @@ resource "azurerm_network_interface" "example" {
 
 resource "azurerm_ssh_public_key" "example" {
   name                = "ssh-${local.random_name}"
-  resource_group_name = azurerm_resource_group.example.name
-  location            = azurerm_resource_group.example.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
   public_key          = tls_private_key.example.public_key_openssh
 }
 
@@ -157,8 +165,8 @@ resource "local_file" "ssh_private_key" {
 
 resource "azurerm_linux_virtual_machine" "example" {
   name                            = "vm-${local.random_name}"
-  resource_group_name             = azurerm_resource_group.example.name
-  location                        = azurerm_resource_group.example.location
+  resource_group_name             = local.resource_group_name
+  location                        = local.location
   size                            = var.vm_size
   admin_username                  = var.vm_username
   disable_password_authentication = true

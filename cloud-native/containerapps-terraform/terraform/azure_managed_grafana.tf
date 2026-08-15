@@ -5,8 +5,8 @@ data "azurerm_client_config" "aca" {}
 resource "azapi_resource" "amg" {
   type      = "Microsoft.Dashboard/grafana@2022-08-01"
   name      = "amg-${local.resource_name}"
-  parent_id = azurerm_resource_group.aca.id
-  location  = azurerm_resource_group.aca.location
+  parent_id = local.resource_group_id
+  location  = local.location
 
   identity {
     type = "SystemAssigned"

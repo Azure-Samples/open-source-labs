@@ -15,3 +15,9 @@ variable "location" {
   description = "The Azure location where all resources in this example should be created."
   default     = "eastus"
 }
+
+variable "resource_group_name" {
+  type        = string
+  description = "Deploy into this existing resource group; leave empty to create one."
+  default     = ""
+}

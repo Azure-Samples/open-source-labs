@@ -31,6 +31,22 @@ Export the selected subscription ID for Terraform.
 export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 ```
 
+The `resource_group_name` variable controls where resources are deployed. Leave it empty (the default) to create a resource group in `location`:
+
+```bash
+unset RESOURCE_GROUP
+just validate
+```
+
+To deploy into an existing resource group, set `RESOURCE_GROUP`; the Justfile exports it as `TF_VAR_resource_group_name`, and Terraform uses the existing group's location:
+
+```bash
+export RESOURCE_GROUP='<EXISTING_RESOURCE_GROUP_NAME>'
+just validate
+```
+
+When running Terraform directly instead of using Just, set `TF_VAR_resource_group_name` to the existing resource group name.
+
 Change to the `cloud-native/aks-arm64-terraform` subdirectory of this repo and run the Terraform deployment script.
 
 ```bash
