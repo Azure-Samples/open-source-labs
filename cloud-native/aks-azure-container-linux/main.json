@@ -1,0 +1,89 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "10708527769775115971"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for the AKS cluster."
+      }
+    },
+    "clusterName": {
+      "type": "string",
+      "defaultValue": "aks-azure-container-linux",
+      "metadata": {
+        "description": "Name of the AKS cluster."
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D2s_v5",
+      "allowedValues": [
+        "Standard_D2s_v5",
+        "Standard_D2pds_v6"
+      ],
+      "metadata": {
+        "description": "Generation 2 node size. Use Standard_D2pds_v6 for Arm64."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerService/managedClusters",
+      "apiVersion": "2026-04-01",
+      "name": "[parameters('clusterName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "dnsPrefix": "[toLower(format('{0}-{1}', parameters('clusterName'), uniqueString(resourceGroup().id)))]",
+        "enableRBAC": true,
+        "kubernetesVersion": "1.34",
+        "autoUpgradeProfile": {
+          "nodeOSUpgradeChannel": "NodeImage"
+        },
+        "agentPoolProfiles": [
+          {
+            "name": "systempool",
+            "count": 1,
+            "vmSize": "[parameters('vmSize')]",
+            "mode": "System",
+            "osType": "Linux",
+            "osSKU": "AzureContainerLinux",
+            "securityProfile": {
+              "enableSecureBoot": true,
+              "enableVTPM": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "clusterName": {
+      "type": "string",
+      "value": "[parameters('clusterName')]"
+    },
+    "kubernetesVersion": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters', parameters('clusterName')), '2026-04-01').kubernetesVersion]"
+    },
+    "nodeOSSKU": {
+      "type": "string",
+      "value": "AzureContainerLinux"
+    },
+    "nodeVMSize": {
+      "type": "string",
+      "value": "[parameters('vmSize')]"
+    }
+  }
+}
