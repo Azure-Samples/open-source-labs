@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "6978159490430439644"
+      "templateHash": "14609948751611656043"
     }
   },
   "parameters": {
@@ -34,14 +34,14 @@
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Public application hostname. Leave empty to use the self-signed fallback."
+        "description": "Public application hostname. Set without dnsZoneName to use HTTP-01, or leave empty for self-signed TLS."
       }
     },
     "dnsZoneName": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Existing public Azure DNS zone. Leave empty to use the self-signed fallback."
+        "description": "Existing public Azure DNS zone. Leave empty to use HTTP-01 when domainName is set."
       }
     },
     "dnsZoneResourceGroup": {
@@ -61,6 +61,7 @@
   },
   "variables": {
     "useLetsEncrypt": "[and(not(equals(parameters('domainName'), '')), not(equals(parameters('dnsZoneName'), '')))]",
+    "useHttp01": "[and(not(equals(parameters('domainName'), '')), equals(parameters('dnsZoneName'), ''))]",
     "suffix": "[substring(uniqueString(resourceGroup().id), 0, 6)]",
     "dnsIdentityName": "[format('cert-manager-dns-{0}', variables('suffix'))]",
     "dnsZoneContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'befefa01-2a29-4197-83a8-272ff33ce314')]",
@@ -109,12 +110,14 @@
       }
     },
     {
+      "condition": "[not(variables('useHttp01'))]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
       "apiVersion": "2024-11-30",
       "name": "[variables('dnsIdentityName')]",
       "location": "[parameters('location')]"
     },
     {
+      "condition": "[not(variables('useHttp01'))]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
       "apiVersion": "2023-01-31",
       "name": "[format('{0}/{1}', variables('dnsIdentityName'), 'cert-manager')]",
@@ -254,7 +257,7 @@
     },
     "domainName": {
       "type": "string",
-      "value": "[if(variables('useLetsEncrypt'), parameters('domainName'), 'aks-https.local')]"
+      "value": "[if(not(equals(parameters('domainName'), '')), parameters('domainName'), 'aks-https.local')]"
     },
     "dnsZoneName": {
       "type": "string",
@@ -274,7 +277,7 @@
     },
     "dnsIdentityClientId": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dnsIdentityName')), '2024-11-30').clientId]"
+      "value": "[if(variables('useHttp01'), '', reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dnsIdentityName')), '2024-11-30').clientId)]"
     },
     "acmeEmail": {
       "type": "string",
@@ -282,7 +285,7 @@
     },
     "certificateMode": {
       "type": "string",
-      "value": "[if(variables('useLetsEncrypt'), 'letsencrypt', 'selfsigned')]"
+      "value": "[if(variables('useLetsEncrypt'), 'letsencrypt', if(variables('useHttp01'), 'letsencrypt-http01', 'selfsigned'))]"
     }
   }
 }

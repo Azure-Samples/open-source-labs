@@ -39,13 +39,13 @@ validate:
             "acmeEmail=$ACME_EMAIL" \
         --no-pretty-print
 
-# Deploy AKS, then install the complete HTTPS application stack in one run-command.
+# Deploy AKS, then install the HTTPS application stack.
 deploy:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [[ -n "$DOMAIN" && -z "$DNS_ZONE_NAME" ]] || [[ -z "$DOMAIN" && -n "$DNS_ZONE_NAME" ]]; then
-        printf 'Set DOMAIN and DNS_ZONE_NAME together, or leave both empty for self-signed TLS.\n' >&2
+    if [[ -z "$DOMAIN" && -n "$DNS_ZONE_NAME" ]]; then
+        printf 'DNS_ZONE_NAME requires DOMAIN.\n' >&2
         exit 1
     fi
 
@@ -82,6 +82,35 @@ deploy:
         --name "$cluster_name" \
         --file install.sh \
         --command "$install_command"
+
+# Wait for HTTP-01 certificate issuance after creating the printed public DNS record.
+wait-http01:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ -z "$DOMAIN" || -n "$DNS_ZONE_NAME" ]]; then
+        printf 'wait-http01 requires DOMAIN with DNS_ZONE_NAME left empty.\n' >&2
+        exit 1
+    fi
+
+    printf -v wait_command '%q ' \
+        bash install.sh \
+        "$AKS_NAME" \
+        "$DOMAIN" \
+        "" \
+        "$DNS_ZONE_RESOURCE_GROUP" \
+        "" \
+        "" \
+        "" \
+        "$ACME_EMAIL" \
+        letsencrypt-http01 \
+        wait
+
+    az aks command invoke \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$AKS_NAME" \
+        --file install.sh \
+        --command "$wait_command"
 
 # Empty the resource group while preserving the group and its scoped access.
 group-empty:

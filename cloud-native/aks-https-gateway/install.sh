@@ -5,11 +5,20 @@ cluster_name="${1:?cluster name is required}"
 domain="${2:?application domain is required}"
 dns_zone="${3-}"
 dns_zone_resource_group="${4-}"
-subscription_id="${5:?subscription ID is required}"
-tenant_id="${6:?tenant ID is required}"
-identity_client_id="${7:?managed identity client ID is required}"
+subscription_id="${5-}"
+tenant_id="${6-}"
+identity_client_id="${7-}"
 acme_email="${8-}"
 certificate_mode="${9:?certificate mode is required}"
+action="${10-install}"
+
+case "$action" in
+    install|wait) ;;
+    *)
+        printf 'Unknown action: %s\n' "$action" >&2
+        exit 1
+        ;;
+esac
 
 case "$certificate_mode" in
     letsencrypt)
@@ -27,6 +36,28 @@ case "$certificate_mode" in
         }
         [[ "$domain" == "$dns_zone" || "$domain" == *."$dns_zone" ]] || {
             printf 'DOMAIN must be within DNS_ZONE_NAME.\n' >&2
+            exit 1
+        }
+        [[ -n "$subscription_id" ]] || {
+            printf 'Subscription ID is required for Azure DNS.\n' >&2
+            exit 1
+        }
+        [[ -n "$tenant_id" ]] || {
+            printf 'Tenant ID is required for Azure DNS.\n' >&2
+            exit 1
+        }
+        [[ -n "$identity_client_id" ]] || {
+            printf 'Managed identity client ID is required for Azure DNS.\n' >&2
+            exit 1
+        }
+        ;;
+    letsencrypt-http01)
+        [[ "$domain" =~ ^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$ ]] || {
+            printf 'Invalid DOMAIN: %s\n' "$domain" >&2
+            exit 1
+        }
+        [[ -z "$dns_zone" ]] || {
+            printf 'DNS_ZONE_NAME must be empty for HTTP-01.\n' >&2
             exit 1
         }
         ;;
@@ -48,6 +79,58 @@ if [[ -n "$acme_email" && ! "$acme_email" =~ $email_pattern ]]; then
     exit 1
 fi
 
+wait_for_gateway_address() {
+    local address=""
+    local elapsed=0
+
+    printf 'Waiting up to 10 minutes for the Gateway public address...\n' >&2
+    while (( elapsed < 600 )); do
+        address="$(kubectl get gateway https-echo \
+            --namespace aks-https \
+            --output=jsonpath='{.status.addresses[0].value}' 2>/dev/null || true)"
+        if [[ -n "$address" ]]; then
+            printf '%s\n' "$address"
+            return 0
+        fi
+        sleep 10
+        ((elapsed += 10))
+        if (( elapsed % 60 == 0 )); then
+            printf 'Still waiting for the Gateway public address (%d minutes elapsed).\n' "$((elapsed / 60))" >&2
+        fi
+    done
+
+    printf 'The Gateway did not receive a public address within 10 minutes. Run this command again after checking the Envoy Gateway service.\n' >&2
+    return 1
+}
+
+wait_for_http01_certificate() {
+    local gateway_address="$1"
+
+    printf '\nWaiting up to 15 minutes for cert-manager to issue the HTTP-01 certificate.\n'
+    printf 'It is retrying while public DNS propagates. Required record: %s A %s\n' "$domain" "$gateway_address"
+    if ! kubectl wait --for=condition=Ready certificate/https-echo-tls \
+        --namespace aks-https \
+        --timeout=15m; then
+        printf '\nThe certificate did not become ready within 15 minutes.\n' >&2
+        printf 'Confirm that %s resolves publicly to %s on an unproxied A record and that HTTP port 80 is not redirected before it reaches the Gateway, then run just wait-http01 again.\n' "$domain" "$gateway_address" >&2
+        return 1
+    fi
+}
+
+if [[ "$action" == "wait" ]]; then
+    [[ "$certificate_mode" == "letsencrypt-http01" ]] || {
+        printf 'The wait action is only valid for the HTTP-01 certificate path.\n' >&2
+        exit 1
+    }
+    gateway_address="$(wait_for_gateway_address)"
+    wait_for_http01_certificate "$gateway_address"
+    kubectl wait --for=condition=Programmed gateway/https-echo --namespace aks-https --timeout=10m
+    printf '\nHTTPS lab is ready.\n'
+    printf 'Trusted endpoint: https://%s\n' "$domain"
+    printf 'TLS 1.2 rejection test: openssl s_client -connect %s:443 -servername %s -tls1_2\n' "$gateway_address" "$domain"
+    exit 0
+fi
+
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 
@@ -65,12 +148,17 @@ crds:
 config:
   gatewayAPI:
     enabled: true
+EOF
+
+if [[ "$certificate_mode" != "letsencrypt-http01" ]]; then
+    cat >> "$work_dir/cert-manager-values.yaml" <<EOF
 podLabels:
   azure.workload.identity/use: "true"
 serviceAccount:
   annotations:
     azure.workload.identity/client-id: "$identity_client_id"
 EOF
+fi
 
 helm upgrade --install cert-manager \
     oci://quay.io/jetstack/charts/cert-manager \
@@ -142,7 +230,7 @@ fi
 
 kubectl create namespace aks-https --dry-run=client --output=yaml | kubectl apply -f -
 
-if [[ "$certificate_mode" == "letsencrypt" ]]; then
+if [[ "$certificate_mode" == "letsencrypt" || "$certificate_mode" == "letsencrypt-http01" ]]; then
     {
         cat <<EOF
 apiVersion: cert-manager.io/v1
@@ -155,7 +243,8 @@ EOF
         if [[ -n "$acme_email" ]]; then
             printf '    email: %s\n' "$acme_email"
         fi
-        cat <<EOF
+        if [[ "$certificate_mode" == "letsencrypt" ]]; then
+            cat <<EOF
     privateKeySecretRef:
       name: letsencrypt-account
     server: https://acme-v02.api.letsencrypt.org/directory
@@ -169,6 +258,22 @@ EOF
             resourceGroupName: $dns_zone_resource_group
             subscriptionID: $subscription_id
 EOF
+        else
+            cat <<'EOF'
+    privateKeySecretRef:
+      name: letsencrypt-account
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - group: gateway.networking.k8s.io
+                kind: Gateway
+                name: https-echo
+                namespace: aks-https
+                sectionName: http
+EOF
+        fi
     } > "$work_dir/issuer.yaml"
     issuer_name="letsencrypt"
 else
@@ -303,7 +408,11 @@ spec:
   hostnames:
     - "$domain"
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             scheme: https
@@ -334,6 +443,20 @@ EOF
 
 kubectl apply -f "$work_dir/application.yaml"
 kubectl rollout status deployment/https-echo --namespace aks-https --timeout=5m
+
+if [[ "$certificate_mode" == "letsencrypt-http01" ]]; then
+    gateway_address="$(wait_for_gateway_address)"
+    printf '\n============================================================\n'
+    printf 'HTTP-01 DNS ACTION REQUIRED\n'
+    printf 'Create this public DNS record now:\n\n'
+    printf '  %s A %s\n\n' "$domain" "$gateway_address"
+    printf 'The record must send port 80 directly to this Gateway. After it resolves publicly, run:\n\n'
+    printf '  just wait-http01\n'
+    printf '============================================================\n'
+    printf 'cert-manager is already retrying the HTTP-01 challenge; no DNS provider credentials were configured.\n'
+    exit 0
+fi
+
 kubectl wait --for=condition=Ready certificate/https-echo-tls --namespace aks-https --timeout=15m
 kubectl wait --for=condition=Programmed gateway/https-echo --namespace aks-https --timeout=10m
 

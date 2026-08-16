@@ -7,10 +7,10 @@ param clusterName string = 'aks-https-routing'
 @description('VM size for the single-node learning cluster.')
 param vmSize string = 'Standard_D2s_v5'
 
-@description('Public application hostname. Leave empty to use the self-signed fallback.')
+@description('Public application hostname. Set without dnsZoneName to use HTTP-01, or leave empty for self-signed TLS.')
 param domainName string = ''
 
-@description('Existing public Azure DNS zone. Leave empty to use the self-signed fallback.')
+@description('Existing public Azure DNS zone. Leave empty to use HTTP-01 when domainName is set.')
 param dnsZoneName string = ''
 
 @description('Resource group containing the existing public Azure DNS zone.')
@@ -20,6 +20,7 @@ param dnsZoneResourceGroup string = resourceGroup().name
 param acmeEmail string = ''
 
 var useLetsEncrypt = domainName != '' && dnsZoneName != ''
+var useHttp01 = domainName != '' && dnsZoneName == ''
 var suffix = substring(uniqueString(resourceGroup().id), 0, 6)
 var dnsIdentityName = 'cert-manager-dns-${suffix}'
 var dnsZoneContributorRoleId = subscriptionResourceId(
@@ -71,12 +72,12 @@ resource cluster 'Microsoft.ContainerService/managedClusters@2026-01-01' = {
   }
 }
 
-resource dnsIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+resource dnsIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = if (!useHttp01) {
   name: dnsIdentityName
   location: location
 }
 
-resource certManagerFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
+resource certManagerFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = if (!useHttp01) {
   parent: dnsIdentity
   name: 'cert-manager'
   properties: {
@@ -106,18 +107,18 @@ module dnsRbac './dns-rbac.bicep' = if (useLetsEncrypt) {
   params: {
     dnsZoneContributorRoleId: dnsZoneContributorRoleId
     dnsZoneName: dnsZoneName
-    identityPrincipalId: dnsIdentity.properties.principalId
+    identityPrincipalId: dnsIdentity!.properties.principalId
     identityResourceId: dnsIdentity.id
     readerRoleId: readerRoleId
   }
 }
 
 output clusterName string = cluster.name
-output domainName string = useLetsEncrypt ? domainName : 'aks-https.local'
+output domainName string = domainName != '' ? domainName : 'aks-https.local'
 output dnsZoneName string = dnsZoneName
 output dnsZoneResourceGroup string = dnsZoneResourceGroup
 output subscriptionId string = subscription().subscriptionId
 output tenantId string = tenant().tenantId
-output dnsIdentityClientId string = dnsIdentity.properties.clientId
+output dnsIdentityClientId string = useHttp01 ? '' : dnsIdentity!.properties.clientId
 output acmeEmail string = acmeEmail
-output certificateMode string = useLetsEncrypt ? 'letsencrypt' : 'selfsigned'
+output certificateMode string = useLetsEncrypt ? 'letsencrypt' : (useHttp01 ? 'letsencrypt-http01' : 'selfsigned')
