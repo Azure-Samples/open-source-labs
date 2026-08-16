@@ -117,14 +117,10 @@
     },
     {
       "path": "linux/vm-tailscale-terraform",
-      "last_validated": "2022-11-21",
-      "validated_by": null,
-      "method": "inferred",
-      "required": "terraform-plan",
-      "blocked": {
-        "reason": "missing-credential",
-        "note": "validate requires TF_VAR_tailnet_name and TF_VAR_tailscale_api_key"
-      }
+      "last_validated": "2026-08-16",
+      "validated_by": "cmbox",
+      "method": "terraform-plan+deploy",
+      "required": "terraform-plan"
     },
     {
       "path": "linux/vm-tailscale",
