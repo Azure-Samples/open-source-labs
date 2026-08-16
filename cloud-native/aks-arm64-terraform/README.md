@@ -9,6 +9,7 @@ This directory holds Terraform configuration files for deploying an AKS cluster 
 - A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
 - [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - The [Terraform CLI](https://www.terraform.io/downloads)
+- The `ARM_SUBSCRIPTION_ID` environment variable set to the ID of the selected Azure subscription
 
 ## Deploy Azure Resources using Terraform
 
@@ -22,6 +23,12 @@ Optionally set the correct subscription if you have more than one.
 
 ```bash
 az account set -s '<YOUR_SUBSCRIPTION_NAME>'
+```
+
+Export the selected subscription ID for Terraform.
+
+```bash
+export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 ```
 
 Change to the `cloud-native/containerapps-terraform/terraform` subdirectory of this repo and run the Terraform deployment script.

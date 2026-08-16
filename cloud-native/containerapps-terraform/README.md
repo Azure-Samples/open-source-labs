@@ -21,6 +21,12 @@ To import dashboards, navigate to your Azure Managed Grafana site, click on the 
 - [Docker](https://docs.docker.com/get-docker/)
 - The [k6 CLI](https://k6.io/docs/getting-started/installation/)
 
+Export the selected Azure subscription ID for the AzureRM provider:
+
+```bash
+export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+```
+
 ## Clone this repository
 
 Before you begin, clone this repository to your location of choice.

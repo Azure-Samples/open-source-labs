@@ -6,13 +6,13 @@ resource "azurerm_virtual_network" "aca" {
   location            = azurerm_resource_group.aca.location
 
   subnet {
-    name           = "Environment"
-    address_prefix = "10.0.0.0/23"
+    name             = "Environment"
+    address_prefixes = ["10.0.0.0/23"]
   }
 
   subnet {
-    name           = "Sandbox"
-    address_prefix = "10.0.2.0/23"
+    name             = "Sandbox"
+    address_prefixes = ["10.0.2.0/23"]
   }
 }
 

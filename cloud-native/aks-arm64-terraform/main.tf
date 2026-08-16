@@ -1,3 +1,16 @@
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
+  }
+}
+
 provider "azurerm" {
   features {
     resource_group {
@@ -52,6 +65,10 @@ resource "azurerm_kubernetes_cluster" "arm64" {
 
   identity {
     type = "SystemAssigned"
+  }
+
+  node_provisioning_profile {
+    mode = "Manual"
   }
 }
 

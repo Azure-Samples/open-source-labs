@@ -14,7 +14,7 @@ resource "azapi_resource" "env" {
   parent_id = azurerm_resource_group.aca.id
   location  = azurerm_resource_group.aca.location
 
-  body = jsonencode({
+  body = {
     properties = {
       appLogsConfiguration = {
         destination = "log-analytics"
@@ -29,7 +29,7 @@ resource "azapi_resource" "env" {
         internal               = var.environment_virtual_network.is_internal
       } : null
     }
-  })
+  }
 }
 
 # https://learn.microsoft.com/azure/templates/microsoft.app/2022-03-01/containerapps?tabs=bicep&pivots=deployment-language-terraform
@@ -39,7 +39,7 @@ resource "azapi_resource" "helloworld" {
   parent_id = azurerm_resource_group.aca.id
   location  = azurerm_resource_group.aca.location
 
-  body = jsonencode({
+  body = {
     properties = {
       managedEnvironmentId = azapi_resource.env.id
       configuration = {
@@ -84,7 +84,7 @@ resource "azapi_resource" "helloworld" {
         }
       }
     }
-  })
+  }
 
   # this tells azapi to pull out properties and stuff into the output attribute for the object
   response_export_values = ["properties.configuration.ingress.fqdn"]
@@ -102,7 +102,7 @@ resource "azapi_resource" "sender" {
     ]
   }
 
-  body = jsonencode({
+  body = {
     properties = {
       managedEnvironmentId = azapi_resource.env.id
       configuration = {
@@ -151,7 +151,7 @@ resource "azapi_resource" "sender" {
         }
       }
     }
-  })
+  }
 
   depends_on = [
     azurerm_role_assignment.aca,
@@ -171,7 +171,7 @@ resource "azapi_resource" "receiver" {
     ]
   }
 
-  body = jsonencode({
+  body = {
     properties = {
       managedEnvironmentId = azapi_resource.env.id
       configuration = {
@@ -239,7 +239,7 @@ resource "azapi_resource" "receiver" {
         }
       }
     }
-  })
+  }
 
   depends_on = [
     azurerm_role_assignment.aca,
