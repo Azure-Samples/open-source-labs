@@ -10,7 +10,9 @@ tenant_id="${6-}"
 identity_client_id="${7-}"
 acme_email="${8-}"
 certificate_mode="${9:?certificate mode is required}"
-action="${10-install}"
+dns_label="${10-}"
+azure_region="${11-}"
+action="${12-install}"
 
 case "$action" in
     install|wait) ;;
@@ -61,6 +63,24 @@ case "$certificate_mode" in
             exit 1
         }
         ;;
+    letsencrypt-azure-http01)
+        [[ "$dns_label" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ && ${#dns_label} -le 63 ]] || {
+            printf 'Invalid DNS_LABEL: %s. Use 1-63 lowercase letters, digits, or hyphens, starting and ending with a letter or digit.\n' "$dns_label" >&2
+            exit 1
+        }
+        [[ "$azure_region" =~ ^[a-z0-9]+$ ]] || {
+            printf 'Invalid Azure region for the public DNS hostname: %s\n' "$azure_region" >&2
+            exit 1
+        }
+        [[ "$domain" == "$dns_label.$azure_region.cloudapp.azure.com" ]] || {
+            printf 'The derived hostname does not match DNS_LABEL and the AKS region: %s\n' "$domain" >&2
+            exit 1
+        }
+        [[ -z "$dns_zone" ]] || {
+            printf 'DNS_ZONE_NAME must be empty for the Azure DNS-label path.\n' >&2
+            exit 1
+        }
+        ;;
     selfsigned)
         [[ "$domain" == "aks-https.local" ]] || {
             printf 'Unexpected fallback domain: %s\n' "$domain" >&2
@@ -99,7 +119,11 @@ wait_for_gateway_address() {
         fi
     done
 
-    printf 'The Gateway did not receive a public address within 10 minutes. Run this command again after checking the Envoy Gateway service.\n' >&2
+    if [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
+        printf 'The Gateway did not receive a public address within 10 minutes. Confirm that DNS_LABEL %s is unique in %s and that the generated Envoy Gateway Service has the Azure DNS-label annotation.\n' "$dns_label" "$azure_region" >&2
+    else
+        printf 'The Gateway did not receive a public address within 10 minutes. Run this command again after checking the Envoy Gateway service.\n' >&2
+    fi
     return 1
 }
 
@@ -107,12 +131,20 @@ wait_for_http01_certificate() {
     local gateway_address="$1"
 
     printf '\nWaiting up to 15 minutes for cert-manager to issue the HTTP-01 certificate.\n'
-    printf 'It is retrying while public DNS propagates. Required record: %s A %s\n' "$domain" "$gateway_address"
+    if [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
+        printf 'Azure is publishing %s for the Gateway public IP %s; no DNS record needs to be created manually.\n' "$domain" "$gateway_address"
+    else
+        printf 'It is retrying while public DNS propagates. Required record: %s A %s\n' "$domain" "$gateway_address"
+    fi
     if ! kubectl wait --for=condition=Ready certificate/https-echo-tls \
         --namespace aks-https \
         --timeout=15m; then
         printf '\nThe certificate did not become ready within 15 minutes.\n' >&2
-        printf 'Confirm that %s resolves publicly to %s on an unproxied A record and that HTTP port 80 is not redirected before it reaches the Gateway, then run just wait-http01 again.\n' "$domain" "$gateway_address" >&2
+        if [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
+            printf 'Confirm that the Envoy Gateway Service has DNS label %s, that the label is unique in %s, that %s resolves publicly to %s, and that HTTP port 80 reaches the Gateway.\n' "$dns_label" "$azure_region" "$domain" "$gateway_address" >&2
+        else
+            printf 'Confirm that %s resolves publicly to %s on an unproxied A record and that HTTP port 80 is not redirected before it reaches the Gateway, then run just wait-http01 again.\n' "$domain" "$gateway_address" >&2
+        fi
         return 1
     fi
 }
@@ -150,7 +182,7 @@ config:
     enabled: true
 EOF
 
-if [[ "$certificate_mode" != "letsencrypt-http01" ]]; then
+if [[ "$certificate_mode" == "letsencrypt" ]]; then
     cat >> "$work_dir/cert-manager-values.yaml" <<EOF
 podLabels:
   azure.workload.identity/use: "true"
@@ -230,7 +262,7 @@ fi
 
 kubectl create namespace aks-https --dry-run=client --output=yaml | kubectl apply -f -
 
-if [[ "$certificate_mode" == "letsencrypt" || "$certificate_mode" == "letsencrypt-http01" ]]; then
+if [[ "$certificate_mode" == "letsencrypt" || "$certificate_mode" == "letsencrypt-http01" || "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
     {
         cat <<EOF
 apiVersion: cert-manager.io/v1
@@ -291,13 +323,45 @@ fi
 kubectl apply -f "$work_dir/issuer.yaml"
 kubectl wait --for=condition=Ready "clusterissuer/$issuer_name" --timeout=5m
 
-cat > "$work_dir/application.yaml" <<EOF
+if [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
+    cat > "$work_dir/application.yaml" <<EOF
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: azure-dns-label
+  namespace: aks-https
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        annotations:
+          service.beta.kubernetes.io/azure-dns-label-name: "$dns_label"
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
   name: envoy-gateway
 spec:
   controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: azure-dns-label
+    namespace: aks-https
+EOF
+else
+    cat > "$work_dir/application.yaml" <<'EOF'
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy-gateway
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+EOF
+fi
+
+cat >> "$work_dir/application.yaml" <<EOF
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -457,7 +521,12 @@ if [[ "$certificate_mode" == "letsencrypt-http01" ]]; then
     exit 0
 fi
 
-kubectl wait --for=condition=Ready certificate/https-echo-tls --namespace aks-https --timeout=15m
+if [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
+    gateway_address="$(wait_for_gateway_address)"
+    wait_for_http01_certificate "$gateway_address"
+else
+    kubectl wait --for=condition=Ready certificate/https-echo-tls --namespace aks-https --timeout=15m
+fi
 kubectl wait --for=condition=Programmed gateway/https-echo --namespace aks-https --timeout=10m
 
 gateway_address="$(kubectl get gateway https-echo --namespace aks-https --output=jsonpath='{.status.addresses[0].value}')"
@@ -465,6 +534,9 @@ printf '\nHTTPS lab is ready.\n'
 if [[ "$certificate_mode" == "letsencrypt" ]]; then
     printf 'Trusted endpoint: https://%s\n' "$domain"
     printf 'ExternalDNS is publishing %s to %s.\n' "$domain" "$gateway_address"
+elif [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
+    printf 'Trusted endpoint: https://%s\n' "$domain"
+    printf 'Azure is publishing the Gateway public IP at %s.\n' "$domain"
 else
     printf 'Self-signed endpoint IP: %s\n' "$gateway_address"
     printf 'Test: curl --resolve %s:443:%s --insecure https://%s/\n' "$domain" "$gateway_address" "$domain"

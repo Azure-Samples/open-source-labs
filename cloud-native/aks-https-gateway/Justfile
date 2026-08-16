@@ -7,6 +7,8 @@ aks_name := env_var_or_default("AKS_NAME", "aks-https-routing")
 vm_size := env_var_or_default("VM_SIZE", "Standard_D2s_v5")
 domain := env_var_or_default("DOMAIN", "")
 dns_zone_name := env_var_or_default("DNS_ZONE_NAME", "")
+dns_label := env_var_or_default("DNS_LABEL", "")
+self_signed := env_var_or_default("SELF_SIGNED", "false")
 dns_zone_resource_group := env_var_or_default("DNS_ZONE_RESOURCE_GROUP", resource_group)
 acme_email := env_var_or_default("ACME_EMAIL", "")
 
@@ -16,12 +18,44 @@ export AKS_NAME := aks_name
 export VM_SIZE := vm_size
 export DOMAIN := domain
 export DNS_ZONE_NAME := dns_zone_name
+export DNS_LABEL := dns_label
+export SELF_SIGNED := self_signed
 export DNS_ZONE_RESOURCE_GROUP := dns_zone_resource_group
 export ACME_EMAIL := acme_email
 export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 
+_validate-certificate-config:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ -z "$DOMAIN" && -n "$DNS_ZONE_NAME" ]]; then
+        printf 'DNS_ZONE_NAME requires DOMAIN.\n' >&2
+        exit 1
+    fi
+
+    if [[ "$SELF_SIGNED" != "true" && "$SELF_SIGNED" != "false" ]]; then
+        printf 'Invalid SELF_SIGNED: %s. Use true or false.\n' "$SELF_SIGNED" >&2
+        exit 1
+    fi
+
+    if [[ "$SELF_SIGNED" == "true" && ( -n "$DOMAIN" || -n "$DNS_ZONE_NAME" || -n "$DNS_LABEL" ) ]]; then
+        printf 'SELF_SIGNED=true cannot be combined with DOMAIN, DNS_ZONE_NAME, or DNS_LABEL.\n' >&2
+        exit 1
+    fi
+
+    if [[ -n "$DNS_LABEL" ]]; then
+        if [[ -n "$DOMAIN" || -n "$DNS_ZONE_NAME" ]]; then
+            printf 'DNS_LABEL cannot be combined with DOMAIN or DNS_ZONE_NAME.\n' >&2
+            exit 1
+        fi
+        if (( ${#DNS_LABEL} > 63 )) || [[ ! "$DNS_LABEL" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; then
+            printf 'Invalid DNS_LABEL: %s. Use 1-63 lowercase letters, digits, or hyphens, starting and ending with a letter or digit.\n' "$DNS_LABEL" >&2
+            exit 1
+        fi
+    fi
+
 # Check generated ARM and preview the deployment without changing resources.
-validate:
+validate: _validate-certificate-config
     #!/usr/bin/env bash
     set -euo pipefail
     diff -u main.json <(az bicep build --file main.bicep --stdout)
@@ -35,21 +69,18 @@ validate:
             "vmSize=$VM_SIZE" \
             "domainName=$DOMAIN" \
             "dnsZoneName=$DNS_ZONE_NAME" \
+            "dnsLabel=$DNS_LABEL" \
+            "selfSigned=$SELF_SIGNED" \
             "dnsZoneResourceGroup=$DNS_ZONE_RESOURCE_GROUP" \
             "acmeEmail=$ACME_EMAIL" \
         --no-pretty-print
 
 # Deploy AKS, then install the HTTPS application stack.
-deploy:
+deploy: _validate-certificate-config
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [[ -z "$DOMAIN" && -n "$DNS_ZONE_NAME" ]]; then
-        printf 'DNS_ZONE_NAME requires DOMAIN.\n' >&2
-        exit 1
-    fi
-
-    IFS='|' read -r cluster_name app_domain zone_name zone_group subscription_id tenant_id identity_client_id email certificate_mode < <(
+    IFS='|' read -r cluster_name app_domain zone_name dns_label cluster_location zone_group subscription_id tenant_id identity_client_id email certificate_mode < <(
         az deployment group create \
             --resource-group "$RESOURCE_GROUP" \
             --template-file main.bicep \
@@ -59,9 +90,11 @@ deploy:
                 "vmSize=$VM_SIZE" \
                 "domainName=$DOMAIN" \
                 "dnsZoneName=$DNS_ZONE_NAME" \
+                "dnsLabel=$DNS_LABEL" \
+                "selfSigned=$SELF_SIGNED" \
                 "dnsZoneResourceGroup=$DNS_ZONE_RESOURCE_GROUP" \
                 "acmeEmail=$ACME_EMAIL" \
-            --query "join('|', [properties.outputs.clusterName.value, properties.outputs.domainName.value, properties.outputs.dnsZoneName.value, properties.outputs.dnsZoneResourceGroup.value, properties.outputs.subscriptionId.value, properties.outputs.tenantId.value, properties.outputs.dnsIdentityClientId.value, properties.outputs.acmeEmail.value, properties.outputs.certificateMode.value])" \
+            --query "join('|', [properties.outputs.clusterName.value, properties.outputs.domainName.value, properties.outputs.dnsZoneName.value, properties.outputs.dnsLabel.value, properties.outputs.clusterLocation.value, properties.outputs.dnsZoneResourceGroup.value, properties.outputs.subscriptionId.value, properties.outputs.tenantId.value, properties.outputs.dnsIdentityClientId.value, properties.outputs.acmeEmail.value, properties.outputs.certificateMode.value])" \
             --output tsv
     )
 
@@ -75,7 +108,9 @@ deploy:
         "$tenant_id" \
         "$identity_client_id" \
         "$email" \
-        "$certificate_mode"
+        "$certificate_mode" \
+        "$dns_label" \
+        "$cluster_location"
 
     az aks command invoke \
         --resource-group "$RESOURCE_GROUP" \
@@ -88,8 +123,8 @@ wait-http01:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [[ -z "$DOMAIN" || -n "$DNS_ZONE_NAME" ]]; then
-        printf 'wait-http01 requires DOMAIN with DNS_ZONE_NAME left empty.\n' >&2
+    if [[ -z "$DOMAIN" || -n "$DNS_ZONE_NAME" || -n "$DNS_LABEL" || "$SELF_SIGNED" == "true" ]]; then
+        printf 'wait-http01 requires DOMAIN with DNS_ZONE_NAME and DNS_LABEL empty and SELF_SIGNED=false.\n' >&2
         exit 1
     fi
 
@@ -104,6 +139,8 @@ wait-http01:
         "" \
         "$ACME_EMAIL" \
         letsencrypt-http01 \
+        "" \
+        "" \
         wait
 
     az aks command invoke \
