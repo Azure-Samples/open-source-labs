@@ -378,12 +378,33 @@ spec:
       labels:
         app: https-echo
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: echo
-          image: mendhak/http-https-echo:41
+          image: ghcr.io/asw101/go-hello@sha256:4e7c405ca6d3d9705e963ac6a96ede326f9dbe13586eb9419e0e4f2dfc9fa307
           ports:
             - name: http
               containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
           resources:
             requests:
               cpu: 25m
@@ -396,9 +417,7 @@ spec:
             capabilities:
               drop:
                 - ALL
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
+            readOnlyRootFilesystem: true
 ---
 apiVersion: v1
 kind: Service
@@ -539,6 +558,6 @@ elif [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
     printf 'Azure is publishing the Gateway public IP at %s.\n' "$domain"
 else
     printf 'Self-signed endpoint IP: %s\n' "$gateway_address"
-    printf 'Test: curl --resolve %s:443:%s --insecure https://%s/\n' "$domain" "$gateway_address" "$domain"
+    printf 'Test: curl --resolve %s:443:%s --insecure https://%s/echo\n' "$domain" "$gateway_address" "$domain"
 fi
 printf 'TLS 1.2 rejection test: openssl s_client -connect %s:443 -servername %s -tls1_2\n' "$gateway_address" "$domain"
