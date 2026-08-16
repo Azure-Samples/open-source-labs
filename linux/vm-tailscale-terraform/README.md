@@ -108,6 +108,36 @@ You can connect to the using the following command.
 eval $(terraform output -raw ssh_command)
 ```
 
+### If SSH times out
+
+The VM reaches your tailnet before your tailnet necessarily allows you to reach
+it. If `tailscale status` shows the machine online but SSH hangs and eventually
+times out, the connection is most likely being dropped by your tailnet's access
+policy rather than by the VM.
+
+Tailscale drops disallowed packets instead of refusing them, which is why this
+appears as a timeout rather than a connection error, and why `tailscale ping`
+can still succeed: ping does not traverse the same policy check as a TCP
+connection to port 22.
+
+Confirm it from the VM itself, which you can reach without SSH. The
+`auth_url_command` output above already contains this deployment's resource
+group and VM name, so reuse those values here:
+
+```bash
+az vm run-command invoke \
+    --resource-group <resource-group> \
+    --name <vm-name> \
+    --command-id RunShellScript \
+    --scripts "journalctl -u tailscaled --no-pager | grep -i drop | tail" \
+    --query "value[0].message" -o tsv
+```
+
+A line reporting a dropped TCP connection to port 22 with no matching rule
+confirms it. The fix belongs in your tailnet's access policy, which is specific
+to how your tailnet is organised; see the Tailscale documentation on access
+controls and on Tailscale SSH.
+
 ## How it works
 
 The [`main.tf`](./main.tf) file uses the following providers:
