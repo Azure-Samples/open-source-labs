@@ -1,0 +1,100 @@
+default:
+    @just --list
+
+resource_group := env_var_or_default("RESOURCE_GROUP", `date +%Y-%m` + "-aks-https-routing")
+location := env_var_or_default("LOCATION", "canadacentral")
+aks_name := env_var_or_default("AKS_NAME", "aks-https-routing")
+vm_size := env_var_or_default("VM_SIZE", "Standard_D2s_v5")
+domain := env_var_or_default("DOMAIN", "")
+dns_zone_name := env_var_or_default("DNS_ZONE_NAME", "")
+dns_zone_resource_group := env_var_or_default("DNS_ZONE_RESOURCE_GROUP", resource_group)
+acme_email := env_var_or_default("ACME_EMAIL", "")
+
+export RESOURCE_GROUP := resource_group
+export LOCATION := location
+export AKS_NAME := aks_name
+export VM_SIZE := vm_size
+export DOMAIN := domain
+export DNS_ZONE_NAME := dns_zone_name
+export DNS_ZONE_RESOURCE_GROUP := dns_zone_resource_group
+export ACME_EMAIL := acme_email
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+# Check generated ARM and preview the deployment without changing resources.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    diff -u main.json <(az bicep build --file main.bicep --stdout)
+    diff -u dns-rbac.json <(az bicep build --file dns-rbac.bicep --stdout)
+    az deployment group what-if \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file main.bicep \
+        --parameters \
+            "location=$LOCATION" \
+            "clusterName=$AKS_NAME" \
+            "vmSize=$VM_SIZE" \
+            "domainName=$DOMAIN" \
+            "dnsZoneName=$DNS_ZONE_NAME" \
+            "dnsZoneResourceGroup=$DNS_ZONE_RESOURCE_GROUP" \
+            "acmeEmail=$ACME_EMAIL" \
+        --no-pretty-print
+
+# Deploy AKS, then install the complete HTTPS application stack in one run-command.
+deploy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ -n "$DOMAIN" && -z "$DNS_ZONE_NAME" ]] || [[ -z "$DOMAIN" && -n "$DNS_ZONE_NAME" ]]; then
+        printf 'Set DOMAIN and DNS_ZONE_NAME together, or leave both empty for self-signed TLS.\n' >&2
+        exit 1
+    fi
+
+    IFS='|' read -r cluster_name app_domain zone_name zone_group subscription_id tenant_id identity_client_id email certificate_mode < <(
+        az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file main.bicep \
+            --parameters \
+                "location=$LOCATION" \
+                "clusterName=$AKS_NAME" \
+                "vmSize=$VM_SIZE" \
+                "domainName=$DOMAIN" \
+                "dnsZoneName=$DNS_ZONE_NAME" \
+                "dnsZoneResourceGroup=$DNS_ZONE_RESOURCE_GROUP" \
+                "acmeEmail=$ACME_EMAIL" \
+            --query "join('|', [properties.outputs.clusterName.value, properties.outputs.domainName.value, properties.outputs.dnsZoneName.value, properties.outputs.dnsZoneResourceGroup.value, properties.outputs.subscriptionId.value, properties.outputs.tenantId.value, properties.outputs.dnsIdentityClientId.value, properties.outputs.acmeEmail.value, properties.outputs.certificateMode.value])" \
+            --output tsv
+    )
+
+    printf -v install_command '%q ' \
+        bash install.sh \
+        "$cluster_name" \
+        "$app_domain" \
+        "$zone_name" \
+        "$zone_group" \
+        "$subscription_id" \
+        "$tenant_id" \
+        "$identity_client_id" \
+        "$email" \
+        "$certificate_mode"
+
+    az aks command invoke \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$cluster_name" \
+        --file install.sh \
+        --command "$install_command"
+
+# Empty the resource group while preserving the group and its scoped access.
+group-empty:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    temp_dir="$(mktemp -d)"
+    empty_bicep="$temp_dir/empty.bicep"
+    trap 'rm -f "$empty_bicep"; rmdir "$temp_dir"' EXIT
+    : > "$empty_bicep"
+
+    printf 'Emptying RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$empty_bicep" \
+        --mode Complete

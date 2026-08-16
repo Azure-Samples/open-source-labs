@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "2611688906169927998"
+    }
+  },
+  "parameters": {
+    "dnsZoneName": {
+      "type": "string",
+      "metadata": {
+        "description": "Existing public Azure DNS zone."
+      }
+    },
+    "identityPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Principal ID of the workload identity."
+      }
+    },
+    "identityResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the workload identity."
+      }
+    },
+    "dnsZoneContributorRoleId": {
+      "type": "string",
+      "metadata": {
+        "description": "DNS Zone Contributor role definition resource ID."
+      }
+    },
+    "readerRoleId": {
+      "type": "string",
+      "metadata": {
+        "description": "Reader role definition resource ID."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Network/dnsZones', parameters('dnsZoneName'))]",
+      "name": "[guid(resourceId('Microsoft.Network/dnsZones', parameters('dnsZoneName')), parameters('identityResourceId'), parameters('dnsZoneContributorRoleId'))]",
+      "properties": {
+        "principalId": "[parameters('identityPrincipalId')]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[parameters('dnsZoneContributorRoleId')]"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, parameters('identityResourceId'), parameters('readerRoleId'))]",
+      "properties": {
+        "principalId": "[parameters('identityPrincipalId')]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[parameters('readerRoleId')]"
+      }
+    }
+  ]
+}
