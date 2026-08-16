@@ -23,6 +23,13 @@
       "required": "arm-diff+what-if"
     },
     {
+      "path": "cloud-native/aks-azure-container-linux",
+      "last_validated": null,
+      "validated_by": null,
+      "method": "inferred",
+      "required": "arm-diff+what-if"
+    },
+    {
       "path": "cloud-native/aks-azure-linux",
       "last_validated": "2026-08-15",
       "validated_by": "cmbox",
@@ -46,6 +53,13 @@
         "reason": "out-of-scope",
         "note": "excluded from this modernization"
       }
+    },
+    {
+      "path": "cloud-native/aks-https-gateway",
+      "last_validated": null,
+      "validated_by": null,
+      "method": "inferred",
+      "required": "arm-diff+what-if"
     },
     {
       "path": "cloud-native/aks-kubeflow",
@@ -94,6 +108,13 @@
       "required": "terraform-plan+go-vet"
     },
     {
+      "path": "linux/vm",
+      "last_validated": "2026-08-15",
+      "validated_by": "cmbox",
+      "method": "arm-diff+deploy",
+      "required": "arm-diff+what-if"
+    },
+    {
       "path": "linux/vm-azure-linux",
       "last_validated": "2026-08-15",
       "validated_by": "cmbox",
@@ -108,13 +129,6 @@
       "required": "arm-diff+what-if"
     },
     {
-      "path": "linux/vm-tailscale-terraform",
-      "last_validated": "2026-08-16",
-      "validated_by": "cmbox",
-      "method": "terraform-plan+deploy",
-      "required": "terraform-plan"
-    },
-    {
       "path": "linux/vm-tailscale",
       "last_validated": "2026-08-15",
       "validated_by": "cmbox",
@@ -122,11 +136,11 @@
       "required": "arm-diff+what-if"
     },
     {
-      "path": "linux/vm",
-      "last_validated": "2026-08-15",
+      "path": "linux/vm-tailscale-terraform",
+      "last_validated": "2026-08-16",
       "validated_by": "cmbox",
-      "method": "arm-diff+deploy",
-      "required": "arm-diff+what-if"
+      "method": "terraform-plan+deploy",
+      "required": "terraform-plan"
     },
     {
       "path": "linux/vmss",

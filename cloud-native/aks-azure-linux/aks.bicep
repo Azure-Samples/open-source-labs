@@ -18,7 +18,6 @@ param deployGpuPools bool = false
 @allowed([
   'AzureLinux3'
   'AzureLinux'
-  'Ubuntu'
 ])
 param osSKU string = 'AzureLinux3'
 
