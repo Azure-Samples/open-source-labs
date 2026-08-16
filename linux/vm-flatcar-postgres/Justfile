@@ -1,3 +1,4 @@
+existing_resource_group := env_var_or_default("RESOURCE_GROUP", "")
 resource_group := env_var_or_default("RESOURCE_GROUP", `date +%y%m` + "00-postgres")
 location := env_var_or_default("LOCATION", "eastus")
 vm_name := env_var_or_default("VM_NAME", "vm1")
@@ -25,12 +26,13 @@ export PGPASSWORD := pg_password
 export PGPORT := pg_port
 export PGDATABASE := pg_database
 export PGUSER := pg_user
+export VALIDATION_RESOURCE_GROUP := existing_resource_group
 export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 
 default:
     @just --list
 
-# Check generated ARM and preview the subscription deployment.
+# Check generated ARM and preview the deployment.
 validate:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -38,13 +40,33 @@ validate:
     temp_dir="$(mktemp -d)"
     trap 'rm -f "$temp_dir/id_rsa" "$temp_dir/id_rsa.pub"; rmdir "$temp_dir"' EXIT
     ssh-keygen -q -t rsa -b 2048 -N '' -f "$temp_dir/id_rsa"
-    az deployment sub what-if \
-        --location "$LOCATION" \
-        --template-file main.bicep \
-        --parameters \
-            "resourceGroup=$RESOURCE_GROUP" \
-            "sshKey=$(<"$temp_dir/id_rsa.pub")" \
-        --no-pretty-print
+    if [[ -n "$VALIDATION_RESOURCE_GROUP" ]]; then
+        group_location="$(az group show --name "$RESOURCE_GROUP" --query location -o tsv)"
+        az deployment group what-if \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file vm.bicep \
+            --parameters \
+                "location=$group_location" \
+                "sshKey=$(<"$temp_dir/id_rsa.pub")" \
+                allowIpPort22=127.0.0.1 \
+            --validation-level Template \
+            --no-pretty-print
+        az deployment group what-if \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file postgres.bicep \
+            --parameters \
+                "location=$group_location" \
+                firewallRuleIp=127.0.0.1 \
+            --no-pretty-print
+    else
+        az deployment sub what-if \
+            --location "$LOCATION" \
+            --template-file main.bicep \
+            --parameters \
+                "resourceGroup=$RESOURCE_GROUP" \
+                "sshKey=$(<"$temp_dir/id_rsa.pub")" \
+            --no-pretty-print
+    fi
 
 # Create the Azure resource group.
 group-create:

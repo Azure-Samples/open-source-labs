@@ -104,6 +104,22 @@ az deployment sub create \
       resourceGroup='220600-containerapps'
 ```
 
+## Validate
+
+Run `just validate` with `RESOURCE_GROUP` unset to compile the templates, check the generated ARM JSON, and preview the subscription-scoped `main.bicep` deployment:
+
+```bash
+unset RESOURCE_GROUP
+just validate
+```
+
+If your credentials are scoped to an existing resource group, set `RESOURCE_GROUP` instead. Validation uses that group's location and runs resource-group-scoped previews of `containerapp.bicep` and `postgres-keyvault.bicep`, the two modules deployed by `main.bicep`:
+
+```bash
+export RESOURCE_GROUP='<EXISTING_RESOURCE_GROUP_NAME>'
+just validate
+```
+
 ## Explore Postgres
 
 See [POSTGRES.md](POSTGRES.md) for instructions on how to login to your Postgres server from your local machine.

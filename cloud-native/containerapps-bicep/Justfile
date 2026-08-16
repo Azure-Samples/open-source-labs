@@ -1,4 +1,4 @@
-resource_group := env_var_or_default("RESOURCE_GROUP", "validate-containerapps-bicep")
+resource_group := env_var_or_default("RESOURCE_GROUP", "")
 location := env_var_or_default("LOCATION", "eastus")
 
 export RESOURCE_GROUP := resource_group
@@ -8,7 +8,7 @@ export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 default:
     @just --list
 
-# Compile every template, check generated ARM, and preview the subscription deployment.
+# Compile every template, check generated ARM, and preview the deployment.
 validate:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -18,8 +18,19 @@ validate:
     for stem in app containerapp main; do
         diff -u "$stem.json" <(az bicep build --file "$stem.bicep" --stdout)
     done
-    az deployment sub what-if \
-        --location "$LOCATION" \
-        --template-file main.bicep \
-        --parameters "resourceGroup=$RESOURCE_GROUP" \
-        --no-pretty-print
+    if [[ -n "$RESOURCE_GROUP" ]]; then
+        group_location="$(az group show --name "$RESOURCE_GROUP" --query location -o tsv)"
+        for template in containerapp postgres-keyvault; do
+            az deployment group what-if \
+                --resource-group "$RESOURCE_GROUP" \
+                --template-file "$template.bicep" \
+                --parameters "location=$group_location" \
+                --no-pretty-print
+        done
+    else
+        az deployment sub what-if \
+            --location "$LOCATION" \
+            --template-file main.bicep \
+            --parameters resourceGroup=validate-containerapps-bicep \
+            --no-pretty-print
+    fi
