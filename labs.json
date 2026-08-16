@@ -60,14 +60,10 @@
     },
     {
       "path": "cloud-native/containerapps-bicep",
-      "last_validated": "2022-12-02",
-      "validated_by": null,
-      "method": "inferred",
-      "required": "arm-diff+what-if",
-      "blocked": {
-        "reason": "subscription-scope",
-        "note": "recipe uses az deployment sub what-if; credentials here are resource-group scoped"
-      }
+      "last_validated": "2026-08-16",
+      "validated_by": "cmbox",
+      "method": "arm-diff+what-if",
+      "required": "arm-diff+what-if"
     },
     {
       "path": "cloud-native/containerapps-github-go",
@@ -106,14 +102,10 @@
     },
     {
       "path": "linux/vm-flatcar-postgres",
-      "last_validated": "2026-08-13",
-      "validated_by": null,
-      "method": "inferred",
-      "required": "arm-diff+what-if",
-      "blocked": {
-        "reason": "subscription-scope",
-        "note": "recipe uses az deployment sub what-if; credentials here are resource-group scoped"
-      }
+      "last_validated": "2026-08-16",
+      "validated_by": "cmbox",
+      "method": "arm-diff+what-if",
+      "required": "arm-diff+what-if"
     },
     {
       "path": "linux/vm-tailscale-terraform",
