@@ -58,11 +58,13 @@ The four paths, in order of preference, are:
 | Path | Configuration | Result |
 | --- | --- | --- |
 | Let's Encrypt with an Azure-provided name (default) | Set no certificate variables. Optionally set `DNS_LABEL` to override the generated label. | Azure assigns `<label>.<region>.cloudapp.azure.com` to the Gateway public IP. cert-manager completes HTTP-01 without a domain, manually created record, or DNS provider credentials. |
-| Let's Encrypt with Azure DNS | Set `DOMAIN` to the application hostname and `DNS_ZONE_NAME` to its authoritative public Azure DNS zone. | ExternalDNS creates the application record. cert-manager completes DNS-01 with workload identity and renews the publicly trusted certificate automatically. |
-| Let's Encrypt with other DNS hosting | Set `DOMAIN` and leave `DNS_ZONE_NAME` empty. | The lab prints the Gateway address. You create one public A record, then run the bounded certificate wait while cert-manager completes HTTP-01. No DNS provider credentials are created or configured. |
-| Explicit self-signed fallback | Set `SELF_SIGNED=true` and leave `DOMAIN`, `DNS_ZONE_NAME`, and `DNS_LABEL` empty. | The lab completes with HTTPS at `aks-https.local`. The certificate is **not publicly trusted**; use the printed `curl --insecure --resolve ...` command. |
+| Let's Encrypt with Azure DNS | Set `DOMAIN` to the application hostname and `DNS_ZONE_NAME` to its authoritative public Azure DNS zone. `DNS_LABEL` is optional. | ExternalDNS creates the application record. cert-manager completes DNS-01 with workload identity and renews the publicly trusted certificate automatically. An optional label also gives the load balancer a stable Azure hostname. |
+| Let's Encrypt with other DNS hosting | Set `DOMAIN`, leave `DNS_ZONE_NAME` empty, and set a unique `DNS_LABEL`. | The lab prints a stable Azure alias target. You create one public CNAME record, then run the bounded certificate wait while cert-manager completes HTTP-01. No DNS provider credentials are created or configured. |
+| Explicit self-signed fallback | Set `SELF_SIGNED=true` and leave `DOMAIN` and `DNS_ZONE_NAME` empty. `DNS_LABEL` is optional. | The lab completes with HTTPS at `aks-https.local`. The certificate is **not publicly trusted**; use the printed `curl --insecure --resolve ...` command. |
 
-`DOMAIN` selects a domain-based path instead of the generated Azure label: adding `DNS_ZONE_NAME` selects Azure DNS DNS-01, while `DOMAIN` alone selects manual-record HTTP-01. `DNS_LABEL` explicitly replaces only the generated label. `SELF_SIGNED=true` is deliberately exclusive of the public-certificate variables.
+`DOMAIN` selects the Gateway listener hostname and the certificate name: adding `DNS_ZONE_NAME` selects Azure DNS DNS-01, while `DOMAIN` alone selects manual-record HTTP-01. `DNS_LABEL` independently adds an Azure-managed name to the load balancer public IP. When both are set, the label never replaces `DOMAIN` in the listener or certificate.
+
+`SELF_SIGNED=true` is exclusive of `DOMAIN` and `DNS_ZONE_NAME`, but may be combined with `DNS_LABEL`. A label is only a Service annotation, so excluding it would not improve certificate safety. The self-signed listener and certificate still use `aks-https.local`; the label merely gives the load balancer IP a stable Azure DNS name.
 
 The default needs only the existing resource group:
 
@@ -86,19 +88,28 @@ export ACME_EMAIL='you@example.com'
 
 The domain must already be delegated to the Azure DNS name servers. The lab uses the supplied zone; it doesn't register a domain or change registrar delegation.
 
-If another provider hosts the zone, set only the application hostname:
+If another provider hosts the zone, set the application hostname and a unique Azure DNS label:
 
 ```bash
 export DOMAIN='echo.example.com'
 unset DNS_ZONE_NAME
+export DNS_LABEL='my-unique-aks-https-label'
 
 # Optional ACME account contact.
 export ACME_EMAIL='you@example.com'
 ```
 
-Do not create the A record yet: the target address doesn't exist until the Gateway is deployed. Run `just deploy`, copy the prominently printed `DOMAIN A ADDRESS` record into your DNS provider, wait for it to resolve publicly, and then run `just wait-http01`. cert-manager starts retrying as soon as the Gateway is created. The follow-up command states what record it is waiting on and waits at most 15 minutes for issuance; if it times out, it prints the checks to make before retrying instead of appearing to hang.
+Do not create the record yet: the Azure target doesn't exist until the Gateway is deployed. Run `just deploy`, then create the prominently printed record:
 
-For Cloudflare, the A record must be **DNS only** (grey cloud), not proxied. A proxied record lets Cloudflare terminate the connection at its edge and can intercept the challenge. Disable Cloudflare's **Always Use HTTPS** for this hostname because it can redirect `/.well-known/acme-challenge/` before the request reaches the cluster. This configuration must remain compatible with HTTP-01: Let's Encrypt normally renews roughly every 60 days, so changing the record to proxied later can cause a silent renewal failure. If you need Cloudflare proxying, HTTP-01 is the wrong certificate path; configure a Cloudflare DNS-01 solver with provider credentials instead. This lab deliberately does not build that provider-specific path.
+```dns
+echo.example.com CNAME my-unique-aks-https-label.canadacentral.cloudapp.azure.com
+```
+
+Set `DOMAIN` to the hostname readers will use and `DNS_LABEL` to a unique label; create exactly one CNAME from `DOMAIN` to `<label>.<region>.cloudapp.azure.com`. This is preferable to an A record on the load balancer IP because Azure keeps its `cloudapp.azure.com` name pointed at the current public IP if that address changes. The Gateway listener and cert-manager certificate remain bound to `DOMAIN`, and ACME HTTP-01 follows the CNAME chain.
+
+Wait for the CNAME to resolve publicly, and then run `just wait-http01`. cert-manager starts retrying as soon as the Gateway is created. The follow-up command states what record it is waiting on and waits at most 15 minutes for issuance; if it times out, it prints the checks to make before retrying instead of appearing to hang. Omitting `DNS_LABEL` remains supported, but then the deployment prints a raw Gateway IP for an A record.
+
+For Cloudflare, the CNAME (or the A record when no label is used) must be **DNS only** (grey cloud), not proxied. A proxied record lets Cloudflare terminate the connection at its edge and can intercept the challenge. Disable Cloudflare's **Always Use HTTPS** for this hostname because it can redirect `/.well-known/acme-challenge/` before the request reaches the cluster. This configuration must remain compatible with HTTP-01: Let's Encrypt normally renews roughly every 60 days, so changing the record to proxied later can cause a silent renewal failure. If you need Cloudflare proxying, HTTP-01 is the wrong certificate path; configure a Cloudflare DNS-01 solver with provider credentials instead. This lab deliberately does not build that provider-specific path.
 
 To choose the Azure-provided label instead of using the generated default, provide a value that is unique within the AKS region:
 
@@ -107,7 +118,7 @@ unset DOMAIN DNS_ZONE_NAME
 export DNS_LABEL='my-unique-aks-https-label'
 ```
 
-`DNS_LABEL` must contain 1-63 lowercase letters, digits, or hyphens and must start and end with a letter or digit. The lab combines it with the cluster's `LOCATION` (default `canadacentral`) to form `my-unique-aks-https-label.canadacentral.cloudapp.azure.com`. Envoy Gateway creates the Gateway's `LoadBalancer` Service, so the lab references a namespaced `EnvoyProxy` from the `GatewayClass` and uses `spec.provider.kubernetes.envoyService.annotations` to put `service.beta.kubernetes.io/azure-dns-label-name` on that generated Service. Azure then creates and hosts the public A record for its public IP. There is no record to create manually and no `just wait-http01` follow-up; the deployment itself waits at most 15 minutes for the HTTP-01 certificate and reports a timeout clearly.
+`DNS_LABEL` must contain 1-63 lowercase letters, digits, or hyphens and must start and end with a letter or digit. The lab combines it with the cluster's `LOCATION` (default `canadacentral`) to form `my-unique-aks-https-label.canadacentral.cloudapp.azure.com`. Envoy Gateway creates the Gateway's `LoadBalancer` Service, so the lab references a namespaced `EnvoyProxy` from the `GatewayClass` and uses `spec.provider.kubernetes.envoyService.annotations` to put `service.beta.kubernetes.io/azure-dns-label-name` on that generated Service. Azure then creates and hosts the public A record for its public IP. When no `DOMAIN` is set, there is no record to create manually and no `just wait-http01` follow-up; the deployment itself waits at most 15 minutes for the HTTP-01 certificate and reports a timeout clearly.
 
 A real deployment with `DNS_LABEL=aks-https-cmbox-2608` in `canadacentral` observed all of the following:
 
@@ -122,7 +133,7 @@ cert-manager renews the 90-day certificate automatically through the same HTTP-0
 Use the self-signed fallback only when public DNS or ACME is intentionally unavailable, such as an air-gapped environment, a restricted subscription that cannot provide a public IP or Azure DNS label, or an environment where ACME issuance fails:
 
 ```bash
-unset DOMAIN DNS_ZONE_NAME DNS_LABEL
+unset DOMAIN DNS_ZONE_NAME
 export SELF_SIGNED='true'
 ```
 
@@ -140,9 +151,9 @@ just validate
 just deploy
 ```
 
-The Azure DNS, Azure-provided DNS-label, and self-signed paths use one ARM deployment followed by one `az aks command invoke`. The deployment creates AKS; only the Azure DNS path creates the conditional federated credentials, identity, and RBAC resources it needs. The run-command installs Envoy Gateway 1.9.0, cert-manager 1.21.1, optional ExternalDNS 0.21.0, the issuer, the application, the Gateway, and both permanent routes. It waits for the certificate and Gateway, then prints the endpoint and test commands. The DNS-label path uses the same HTTP-01 solver as the manual-domain path, but Azure publishes the public-IP record automatically, so its bounded wait stays in the first run-command.
+The Azure DNS, Azure-provided DNS-label, and self-signed paths use one ARM deployment followed by one `az aks command invoke`. The deployment creates AKS; only the Azure DNS path creates the conditional federated credentials, identity, and RBAC resources it needs. The run-command installs Envoy Gateway 1.9.0, cert-manager 1.21.1, optional ExternalDNS 0.21.0, the issuer, the application, the Gateway, and both permanent routes. It waits for the certificate and Gateway, then prints the endpoint and test commands. The DNS-label-only path uses the same HTTP-01 solver as the manual-domain path, but Azure publishes the public-IP record automatically, so its bounded wait stays in the first run-command.
 
-The manual-domain HTTP-01 path must be ordered differently. Its first run-command returns after the Gateway receives an address because `az aks command invoke` does not stream remote logs while a command is running; waiting inside that command would hide the address needed for the A record. After you create the printed record, `just wait-http01` starts a second run-command with a bounded certificate wait. cert-manager's temporary solver route is already present or retrying by then.
+The manual-domain HTTP-01 path must be ordered differently. Its first run-command returns after the Gateway receives an address because `az aks command invoke` does not stream remote logs while a command is running; waiting inside that command would hide the A-record address or confirmation that the Azure CNAME target is active. After you create the printed A or CNAME record, `just wait-http01` starts a second run-command with a bounded certificate wait. cert-manager's temporary solver route is already present or retrying by then.
 
 A Bicep `deploymentScripts` resource is deliberately not used. It would add a script identity, storage resources, and log-retention lifecycle to the ARM deployment while still depending on the new cluster becoming ready and having outbound registry access. Explicit AKS run-commands keep those Kubernetes concerns in-cluster, need no local credentials, and are retryable.
 

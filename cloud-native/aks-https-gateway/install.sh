@@ -22,6 +22,19 @@ case "$action" in
         ;;
 esac
 
+azure_alias_target=""
+if [[ -n "$dns_label" ]]; then
+    [[ "$dns_label" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ && ${#dns_label} -le 63 ]] || {
+        printf 'Invalid DNS_LABEL: %s. Use 1-63 lowercase letters, digits, or hyphens, starting and ending with a letter or digit.\n' "$dns_label" >&2
+        exit 1
+    }
+    [[ "$azure_region" =~ ^[a-z0-9]+$ ]] || {
+        printf 'Invalid Azure region for the public DNS hostname: %s\n' "$azure_region" >&2
+        exit 1
+    }
+    azure_alias_target="$dns_label.$azure_region.cloudapp.azure.com"
+fi
+
 case "$certificate_mode" in
     letsencrypt)
         [[ "$domain" =~ ^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$ ]] || {
@@ -64,15 +77,7 @@ case "$certificate_mode" in
         }
         ;;
     letsencrypt-azure-http01)
-        [[ "$dns_label" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ && ${#dns_label} -le 63 ]] || {
-            printf 'Invalid DNS_LABEL: %s. Use 1-63 lowercase letters, digits, or hyphens, starting and ending with a letter or digit.\n' "$dns_label" >&2
-            exit 1
-        }
-        [[ "$azure_region" =~ ^[a-z0-9]+$ ]] || {
-            printf 'Invalid Azure region for the public DNS hostname: %s\n' "$azure_region" >&2
-            exit 1
-        }
-        [[ "$domain" == "$dns_label.$azure_region.cloudapp.azure.com" ]] || {
+        [[ "$domain" == "$azure_alias_target" ]] || {
             printf 'The derived hostname does not match DNS_LABEL and the AKS region: %s\n' "$domain" >&2
             exit 1
         }
@@ -133,6 +138,8 @@ wait_for_http01_certificate() {
     printf '\nWaiting up to 15 minutes for cert-manager to issue the HTTP-01 certificate.\n'
     if [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
         printf 'Azure is publishing %s for the Gateway public IP %s; no DNS record needs to be created manually.\n' "$domain" "$gateway_address"
+    elif [[ -n "$azure_alias_target" ]]; then
+        printf 'It is retrying while public DNS propagates. Required record: %s CNAME %s\n' "$domain" "$azure_alias_target"
     else
         printf 'It is retrying while public DNS propagates. Required record: %s A %s\n' "$domain" "$gateway_address"
     fi
@@ -142,6 +149,8 @@ wait_for_http01_certificate() {
         printf '\nThe certificate did not become ready within 15 minutes.\n' >&2
         if [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
             printf 'Confirm that the Envoy Gateway Service has DNS label %s, that the label is unique in %s, that %s resolves publicly to %s, and that HTTP port 80 reaches the Gateway.\n' "$dns_label" "$azure_region" "$domain" "$gateway_address" >&2
+        elif [[ -n "$azure_alias_target" ]]; then
+            printf 'Confirm that %s is an unproxied CNAME to %s, that it resolves publicly to %s, and that HTTP port 80 reaches the Gateway, then run just wait-http01 again.\n' "$domain" "$azure_alias_target" "$gateway_address" >&2
         else
             printf 'Confirm that %s resolves publicly to %s on an unproxied A record and that HTTP port 80 is not redirected before it reaches the Gateway, then run just wait-http01 again.\n' "$domain" "$gateway_address" >&2
         fi
@@ -159,6 +168,9 @@ if [[ "$action" == "wait" ]]; then
     kubectl wait --for=condition=Programmed gateway/https-echo --namespace aks-https --timeout=10m
     printf '\nHTTPS lab is ready.\n'
     printf 'Trusted endpoint: https://%s\n' "$domain"
+    if [[ -n "$azure_alias_target" ]]; then
+        printf 'CNAME record: %s CNAME %s\n' "$domain" "$azure_alias_target"
+    fi
     printf 'TLS 1.2 rejection test: openssl s_client -connect %s:443 -servername %s -tls1_2\n' "$gateway_address" "$domain"
     exit 0
 fi
@@ -323,7 +335,7 @@ fi
 kubectl apply -f "$work_dir/issuer.yaml"
 kubectl wait --for=condition=Ready "clusterissuer/$issuer_name" --timeout=5m
 
-if [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
+if [[ -n "$dns_label" ]]; then
     cat > "$work_dir/application.yaml" <<EOF
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyProxy
@@ -532,7 +544,12 @@ if [[ "$certificate_mode" == "letsencrypt-http01" ]]; then
     printf '\n============================================================\n'
     printf 'HTTP-01 DNS ACTION REQUIRED\n'
     printf 'Create this public DNS record now:\n\n'
-    printf '  %s A %s\n\n' "$domain" "$gateway_address"
+    if [[ -n "$azure_alias_target" ]]; then
+        printf '  %s CNAME %s\n\n' "$domain" "$azure_alias_target"
+        printf 'Azure keeps %s pointed at the Gateway public IP %s.\n\n' "$azure_alias_target" "$gateway_address"
+    else
+        printf '  %s A %s\n\n' "$domain" "$gateway_address"
+    fi
     printf 'The record must send port 80 directly to this Gateway. After it resolves publicly, run:\n\n'
     printf '  just wait-http01\n'
     printf '============================================================\n'
@@ -559,5 +576,11 @@ elif [[ "$certificate_mode" == "letsencrypt-azure-http01" ]]; then
 else
     printf 'Self-signed endpoint IP: %s\n' "$gateway_address"
     printf 'Test: curl --resolve %s:443:%s --insecure https://%s/echo\n' "$domain" "$gateway_address" "$domain"
+fi
+if [[ -n "$azure_alias_target" && "$domain" != "$azure_alias_target" && "$certificate_mode" != "selfsigned" ]]; then
+    printf 'CNAME alias target: %s\n' "$azure_alias_target"
+    if [[ "$certificate_mode" != "letsencrypt" ]]; then
+        printf 'CNAME record: %s CNAME %s\n' "$domain" "$azure_alias_target"
+    fi
 fi
 printf 'TLS 1.2 rejection test: openssl s_client -connect %s:443 -servername %s -tls1_2\n' "$gateway_address" "$domain"

@@ -38,16 +38,12 @@ _validate-certificate-config:
         exit 1
     fi
 
-    if [[ "$SELF_SIGNED" == "true" && ( -n "$DOMAIN" || -n "$DNS_ZONE_NAME" || -n "$DNS_LABEL" ) ]]; then
-        printf 'SELF_SIGNED=true cannot be combined with DOMAIN, DNS_ZONE_NAME, or DNS_LABEL.\n' >&2
+    if [[ "$SELF_SIGNED" == "true" && ( -n "$DOMAIN" || -n "$DNS_ZONE_NAME" ) ]]; then
+        printf 'SELF_SIGNED=true cannot be combined with DOMAIN or DNS_ZONE_NAME.\n' >&2
         exit 1
     fi
 
     if [[ -n "$DNS_LABEL" ]]; then
-        if [[ -n "$DOMAIN" || -n "$DNS_ZONE_NAME" ]]; then
-            printf 'DNS_LABEL cannot be combined with DOMAIN or DNS_ZONE_NAME.\n' >&2
-            exit 1
-        fi
         if (( ${#DNS_LABEL} > 63 )) || [[ ! "$DNS_LABEL" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; then
             printf 'Invalid DNS_LABEL: %s. Use 1-63 lowercase letters, digits, or hyphens, starting and ending with a letter or digit.\n' "$DNS_LABEL" >&2
             exit 1
@@ -123,8 +119,8 @@ wait-http01:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [[ -z "$DOMAIN" || -n "$DNS_ZONE_NAME" || -n "$DNS_LABEL" || "$SELF_SIGNED" == "true" ]]; then
-        printf 'wait-http01 requires DOMAIN with DNS_ZONE_NAME and DNS_LABEL empty and SELF_SIGNED=false.\n' >&2
+    if [[ -z "$DOMAIN" || -n "$DNS_ZONE_NAME" || "$SELF_SIGNED" == "true" ]]; then
+        printf 'wait-http01 requires DOMAIN with DNS_ZONE_NAME empty and SELF_SIGNED=false; DNS_LABEL is optional.\n' >&2
         exit 1
     fi
 
@@ -139,8 +135,8 @@ wait-http01:
         "" \
         "$ACME_EMAIL" \
         letsencrypt-http01 \
-        "" \
-        "" \
+        "$DNS_LABEL" \
+        "$LOCATION" \
         wait
 
     az aks command invoke \
