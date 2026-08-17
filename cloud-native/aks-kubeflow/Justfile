@@ -4,20 +4,142 @@ default:
 resource_group := env_var_or_default("RESOURCE_GROUP", "")
 location := env_var_or_default("LOCATION", "eastus")
 aks_name := env_var_or_default("AKS_NAME", "aks-kubeflow")
+domain := env_var_or_default("DOMAIN", "")
+dns_label := env_var_or_default("DNS_LABEL", "")
 
 export RESOURCE_GROUP := resource_group
 export LOCATION := location
 export AKS_NAME := aks_name
+export DOMAIN := domain
+export DNS_LABEL := dns_label
 export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 
-# Check generated ARM without changing Azure resources.
+# Run local version, source, manifest, test, and link checks.
 validate-static:
     #!/usr/bin/env bash
     set -euo pipefail
     source versions.env
+
+    require_equal() {
+        local label="$1"
+        local expected="$2"
+        local actual="$3"
+        if [[ "$actual" != "$expected" ]]; then
+            printf '%s: expected %s, got %s\n' "$label" "$expected" "$actual" >&2
+            exit 1
+        fi
+    }
+
+    require_kubectl_skew() {
+        local cluster_version="$1"
+        local kubectl_version="$2"
+        local cluster_major
+        local cluster_minor
+        local kubectl_major
+        local kubectl_minor
+
+        if [[ ! "$cluster_version" =~ ^v?([0-9]+)\.([0-9]+)$ ]]; then
+            printf 'AKS Kubernetes version is not a major.minor version: %s\n' \
+                "$cluster_version" >&2
+            exit 1
+        fi
+        cluster_major=$((10#${BASH_REMATCH[1]}))
+        cluster_minor=$((10#${BASH_REMATCH[2]}))
+
+        if [[ ! "$kubectl_version" =~ ^v?([0-9]+)\.([0-9]+)\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            printf 'kubectl returned an invalid semantic version: %s\n' \
+                "${kubectl_version:-<empty>}" >&2
+            exit 1
+        fi
+        kubectl_major=$((10#${BASH_REMATCH[1]}))
+        kubectl_minor=$((10#${BASH_REMATCH[2]}))
+
+        if (( kubectl_major != cluster_major ||
+              kubectl_minor < cluster_minor - 1 ||
+              kubectl_minor > cluster_minor + 1 )); then
+            printf 'kubectl version: expected v%d.%d.x through v%d.%d.x for AKS Kubernetes %s, got %s\n' \
+                "$cluster_major" "$((cluster_minor - 1))" \
+                "$cluster_major" "$((cluster_minor + 1))" \
+                "$cluster_version" "$kubectl_version" >&2
+            exit 1
+        fi
+    }
+
+    bicep_version="$(az bicep version | awk '{print $4}')"
+    require_equal "Bicep CLI version" "$BICEP_CLI_VERSION" "$bicep_version"
     diff -u main.json <(az bicep build --file main.bicep --stdout)
 
-# Check generated ARM and preview the AKS deployment without changing Azure resources.
+    kubectl_version="$(
+        kubectl version --client --output=json |
+            sed -n 's/^[[:space:]]*"gitVersion": "\([^"]*\)",*$/\1/p'
+    )"
+    require_kubectl_skew "$AKS_KUBERNETES_VERSION" "$kubectl_version"
+    require_equal "Kustomize version" "$KUSTOMIZE_VERSION" "$(kustomize version)"
+
+    go_version="$(cd tools/password && go version | awk '{print $3}')"
+    require_equal "Go toolchain" "$GO_TOOLCHAIN" "$go_version"
+    go_mod_version="$(awk '$1 == "go" { print $2 }' tools/password/go.mod)"
+    go_mod_toolchain="$(awk '$1 == "toolchain" { print $2 }' tools/password/go.mod)"
+    require_equal "go.mod language version" "$GO_VERSION" "$go_mod_version"
+    require_equal "go.mod toolchain" "$GO_TOOLCHAIN" "$go_mod_toolchain"
+    (cd tools/password && go test ./... && go vet ./...)
+
+    DOMAIN='' DNS_LABEL='' just --quiet fetch-kubeflow
+    archive=".cache/community-distribution-${KUBEFLOW_VERSION}.tar.gz"
+    echo "$KUBEFLOW_ARCHIVE_SHA256  $archive" | sha256sum --check --strict
+
+    rendered="$(mktemp)"
+    trap 'rm -f "$rendered"' EXIT
+    kustomize build ".cache/community-distribution-${KUBEFLOW_VERSION}/aks-overlay" \
+        > "$rendered"
+    test -s "$rendered"
+
+    grep -Fq "app.kubernetes.io/version: v${CERT_MANAGER_VERSION}" "$rendered"
+    grep -Fq "app.kubernetes.io/version: ${ISTIO_VERSION}" "$rendered"
+    grep -Fq 'controller: istio.io/ingress-controller' "$rendered"
+    grep -Fq 'service.beta.kubernetes.io/azure-dns-label-name: kubeflow-static-validation' "$rendered"
+    grep -Fq 'credentialName: kubeflow-tls' "$rendered"
+    grep -Fq 'https://acme-v02.api.letsencrypt.org/directory' "$rendered"
+    grep -Fq 'DEX_USER_PASSWORD: INVALID-MUST-BE-REPLACED-BEFORE-LOGIN' "$rendered"
+
+    if grep -Eq '12341234|\$2y\$12\$4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72|@@' \
+        "$rendered"; then
+        printf 'Rendered manifests contain a default credential or an unresolved placeholder.\n' >&2
+        exit 1
+    fi
+
+    static_host='kubeflow-static-validation.eastus.cloudapp.azure.com'
+    mapfile -t rendered_hosts < <(
+        grep -Eo '[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.cloudapp\.azure\.com' "$rendered" |
+            sort -u
+    )
+    if (( ${#rendered_hosts[@]} != 1 )); then
+        printf 'Rendered manifests contain inconsistent Azure hostnames.\n' >&2
+        exit 1
+    fi
+    require_equal "rendered hostname" "$static_host" "${rendered_hosts[0]}"
+    require_equal "Dex and JWT issuer count" "2" \
+        "$(grep -Fc "issuer: https://${static_host}/dex" "$rendered")"
+    require_equal "Dex redirect count" "1" \
+        "$(grep -Fc "redirectURIs: [\"https://${static_host}/oauth2/callback\"]" "$rendered")"
+    require_equal "oauth2-proxy issuer count" "1" \
+        "$(grep -Ec "^[[:space:]]+value: https://${static_host}/dex$" "$rendered")"
+    require_equal "oauth2-proxy login count" "1" \
+        "$(grep -Ec "^[[:space:]]+value: https://${static_host}/dex/auth$" "$rendered")"
+    require_equal "oauth2-proxy redirect count" "1" \
+        "$(grep -Ec "^[[:space:]]+value: https://${static_host}/oauth2/callback$" "$rendered")"
+    require_equal "Certificate and Gateway hostname count" "2" \
+        "$(grep -Ec "^[[:space:]]+- ${static_host}$" "$rendered")"
+
+    lychee --no-progress --max-retries 2 README.md
+
+    test ! -e BASIC-CLI.md
+    test ! -e auth.md
+    test ! -d aks
+    expected_recipes='default validate-static validate fetch-kubeflow clean-cache deploy-aks credentials deploy-kubeflow wait-ready e2e group-empty password'
+    require_equal "public recipe list" "$expected_recipes" "$(just --summary --unsorted)"
+
+# Run static validation and preview the AKS deployment.
 validate: validate-static
     #!/usr/bin/env bash
     set -euo pipefail
@@ -31,66 +153,6 @@ validate: validate-static
             "clusterName=$AKS_NAME" \
             "kubernetesVersion=$AKS_KUBERNETES_VERSION" \
         --no-pretty-print
-
-# Deploy the AKS cluster at resource-group scope.
-deploy-aks:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source versions.env
-    : "${RESOURCE_GROUP:?Set RESOURCE_GROUP to an existing resource group}"
-    az deployment group create \
-        --resource-group "$RESOURCE_GROUP" \
-        --template-file main.bicep \
-        --parameters \
-            "location=$LOCATION" \
-            "clusterName=$AKS_NAME" \
-            "kubernetesVersion=$AKS_KUBERNETES_VERSION"
-
-# Get credentials for the AKS cluster.
-credentials:
-    az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME" --admin --overwrite-existing
-
-# Install kubectl through the Azure CLI.
-aks-kubectl:
-    az aks install-cli
-
-# Install the pinned Kustomize release in /usr/local/bin.
-ensure-kustomize:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source versions.env
-    if [[ -z "${SUDO_USER:-}" ]]; then
-        printf 'Run this recipe with sudo.\n' >&2
-        exit 1
-    fi
-
-    case "$(uname -s)-$(uname -m)" in
-        Darwin-arm64)
-            platform="darwin_arm64"
-            ;;
-        Darwin-x86_64)
-            platform="darwin_amd64"
-            ;;
-        Linux-aarch64|Linux-arm64)
-            platform="linux_arm64"
-            ;;
-        Linux-x86_64)
-            platform="linux_amd64"
-            ;;
-        *)
-            printf 'Unsupported platform: %s-%s\n' "$(uname -s)" "$(uname -m)" >&2
-            exit 1
-            ;;
-    esac
-
-    asset="kustomize_${KUSTOMIZE_VERSION}_${platform}.tar.gz"
-    temp_dir="$(mktemp -d)"
-    trap 'rm -f "$temp_dir/$asset" "$temp_dir/kustomize"; rmdir "$temp_dir"' EXIT
-    curl --fail --location --silent --show-error \
-        "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/$asset" \
-        --output "$temp_dir/$asset"
-    tar -xzf "$temp_dir/$asset" -C "$temp_dir"
-    install -m 0755 "$temp_dir/kustomize" /usr/local/bin/kustomize
 
 # Download, verify, and prepare the pinned Kubeflow release.
 fetch-kubeflow:
@@ -115,8 +177,8 @@ fetch-kubeflow:
     tar -xzf "$archive" --strip-components=1 -C "$release_dir"
     cp -R overlay "$release_dir/aks-overlay"
 
-    domain="${DOMAIN:-}"
-    requested_dns_label="${DNS_LABEL:-}"
+    domain="$DOMAIN"
+    requested_dns_label="$DNS_LABEL"
     domain_label_pattern='[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?'
     if [[ -n "$domain" ]] &&
         { (( ${#domain} > 253 )) ||
@@ -132,9 +194,9 @@ fetch-kubeflow:
 
     default_dns_label="kubeflow-static-validation"
     default_kubeflow_host="kubeflow-static-validation.eastus.cloudapp.azure.com"
-    location="eastus"
-    dns_label="${requested_dns_label:-$default_dns_label}"
-    azure_host="${dns_label}.${location,,}.cloudapp.azure.com"
+    deployment_location="eastus"
+    selected_dns_label="${requested_dns_label:-$default_dns_label}"
+    azure_host="${selected_dns_label}.${deployment_location,,}.cloudapp.azure.com"
     kubeflow_host="${domain:-$azure_host}"
     dex_issuer="https://${kubeflow_host}/dex"
     dex_login_url="https://${kubeflow_host}/dex/auth"
@@ -144,7 +206,7 @@ fetch-kubeflow:
     fi
 
     printf '%s\n' \
-        "DNS_LABEL=$dns_label" \
+        "DNS_LABEL=$selected_dns_label" \
         "KUBEFLOW_HOST=$kubeflow_host" \
         "DEX_ISSUER=$dex_issuer" \
         "DEX_LOGIN_URL=$dex_login_url" \
@@ -162,12 +224,39 @@ fetch-kubeflow:
 clean-cache:
     rm -rf -- .cache
 
-# Install Kubeflow from the pinned release, retrying transient apply failures.
-kubeflow: fetch-kubeflow
+# Deploy the AKS cluster at resource-group scope.
+deploy-aks:
     #!/usr/bin/env bash
     set -euo pipefail
     source versions.env
-    cd ".cache/community-distribution-${KUBEFLOW_VERSION}"
+    : "${RESOURCE_GROUP:?Set RESOURCE_GROUP to an existing resource group}"
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file main.bicep \
+        --parameters \
+            "location=$LOCATION" \
+            "clusterName=$AKS_NAME" \
+            "kubernetesVersion=$AKS_KUBERNETES_VERSION"
+
+# Get administrator credentials for the AKS cluster.
+credentials:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${RESOURCE_GROUP:?Set RESOURCE_GROUP to an existing resource group}"
+    az aks get-credentials \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$AKS_NAME" \
+        --admin \
+        --overwrite-existing
+
+# Install pinned Kubeflow and configure runtime Dex credentials.
+deploy-kubeflow: fetch-kubeflow
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source versions.env
+    release_dir=".cache/community-distribution-${KUBEFLOW_VERSION}"
+
+    cd "$release_dir"
     attempt=1
     while ! kustomize build aks-overlay |
         kubectl apply --server-side --force-conflicts -f -; do
@@ -179,19 +268,29 @@ kubeflow: fetch-kubeflow
         sleep 20
         ((attempt += 1))
     done
-    source aks-overlay/params.env
-    printf 'Kubeflow URL: https://%s\n' "$KUBEFLOW_HOST"
+    cd - >/dev/null
 
-# Delete Kubeflow resources defined by the pinned release.
-kubeflow-delete: fetch-kubeflow
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source versions.env
-    cd ".cache/community-distribution-${KUBEFLOW_VERSION}"
-    kustomize build aks-overlay | kubectl delete -f -
+    credentials="$(just --quiet _password-and-hash)"
+    password="${credentials#Password: }"
+    password="${password%%$'\n'*}"
+    hash="${credentials##*$'\n'Hash: }"
+    username="user@example.com"
+    source "$release_dir/aks-overlay/params.env"
+
+    kubectl create secret generic dex-passwords \
+        --namespace auth \
+        --from-literal="DEX_USER_PASSWORD=$hash" \
+        --dry-run=client \
+        --output yaml |
+        kubectl apply --filename -
+    kubectl rollout restart deployment/dex --namespace auth
+    kubectl rollout status deployment/dex --namespace auth --timeout=5m
+
+    printf 'Username: %s\nPassword: %s\nURL: https://%s\n' \
+        "$username" "$password" "$KUBEFLOW_HOST"
 
 # Wait for every Kubeflow pod to become ready.
-kubectl-ready:
+wait-ready:
     #!/usr/bin/env bash
     set -euo pipefail
     namespaces=(
@@ -221,39 +320,39 @@ kubectl-ready:
             exit 0
         fi
         if (( attempt < 10 )); then
-            printf 'attempt %d of 10 failed. waiting 60 seconds.\n' "$attempt"
+            printf 'attempt %d of 10 failed; waiting 60 seconds.\n' "$attempt"
             sleep 60
         fi
     done
 
-    printf 'exceeded max attempts: 10\n' >&2
+    printf 'Exceeded 10 readiness attempts.\n' >&2
     exit 1
 
-# List pods in each Kubeflow namespace.
-kubeflow-pods:
+# Check the public HTTPS endpoint with trusted TLS.
+e2e:
     #!/usr/bin/env bash
     set -euo pipefail
-    namespaces=(
-        cert-manager
-        istio-system
-        auth
-        knative-eventing
-        knative-serving
-        kubeflow
-        kubeflow-user-example-com
-    )
-    for namespace in "${namespaces[@]}"; do
-        kubectl get pods --namespace "$namespace"
-    done
+    host="$(
+        kubectl get certificate kubeflow-tls \
+            --namespace istio-system \
+            --output=jsonpath='{.spec.dnsNames[0]}'
+    )"
+    result="$(
+        curl --silent --show-error --output /dev/null \
+            --write-out '%{http_code} %{ssl_verify_result}' \
+            "https://${host}/"
+    )"
+    read -r status ssl_verify_result <<< "$result"
+    test "$ssl_verify_result" = "0"
+    [[ "$status" == 2?? || "$status" == 3?? ]]
+    printf 'HTTPS endpoint: https://%s/ (%s, TLS verification %s)\n' \
+        "$host" "$status" "$ssl_verify_result"
 
-# Deleting a resource group destroys any role assignment scoped to it, so where
-# your access is granted at the group scope rather than the subscription, reach
-# for this instead of group-delete.
-
-# Empty the resource group, leaving the group itself in place.
+# Empty the resource group while preserving it and its scoped access.
 group-empty:
     #!/usr/bin/env bash
     set -euo pipefail
+    : "${RESOURCE_GROUP:?Set RESOURCE_GROUP to an existing resource group}"
     temp_dir="$(mktemp -d)"
     empty_bicep="$temp_dir/empty.bicep"
     trap 'rm -f "$empty_bicep"; rmdir "$temp_dir"' EXIT
@@ -268,39 +367,8 @@ group-empty:
 
 [private]
 _password-and-hash:
-    @cd {{justfile_directory()}}/tools/password && go run .
+    @cd {{ justfile_directory() }}/tools/password && go run .
 
 # Generate a 32-character password and its cost-12 bcrypt hash.
 password:
     @just _password-and-hash
-
-# Configure Dex with a generated password kept only in the cluster and terminal.
-configure-dex: fetch-kubeflow
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source versions.env
-
-    credentials="$(just --quiet _password-and-hash)"
-    password="${credentials#Password: }"
-    password="${password%%$'\n'*}"
-    hash="${credentials##*$'\n'Hash: }"
-
-    username="user@example.com"
-    source ".cache/community-distribution-${KUBEFLOW_VERSION}/aks-overlay/params.env"
-
-    kubectl create secret generic dex-passwords \
-        --namespace auth \
-        --from-literal="DEX_USER_PASSWORD=$hash" \
-        --dry-run=client \
-        --output yaml |
-        kubectl apply --filename -
-    kubectl rollout restart deployment/dex --namespace auth
-    kubectl rollout status deployment/dex --namespace auth --timeout=5m
-
-    printf 'Username: %s\nPassword: %s\nURL: https://%s\n' \
-        "$username" "$password" "$KUBEFLOW_HOST"
-
-# Wait for the specified number of seconds.
-wait seconds:
-    @printf 'waiting %ss\n' "{{ seconds }}"
-    @sleep "{{ seconds }}"
