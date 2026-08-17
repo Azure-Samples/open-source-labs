@@ -22,6 +22,20 @@ This file contains the repository-level operational rules for changing a lab.
   `go test ./...` succeeds when a module has no tests. Retain `go vet ./...` so
   the package must compile, and claim `go-test` only when at least one test ran.
 
+## Documentation contract
+
+- Generated ARM comparisons and Azure previews verify templates, not the prose
+  beside them. Re-read a lab's README whenever its Justfile, template, or
+  variables change; treat a stale claim as a defect, not untidiness.
+- Run `just --list` in the lab and make its README recipe listing match the
+  output. When a recipe, file, or lab is removed or renamed, remove or update
+  every reference to it.
+- Match image publisher, offer, SKU, versions, sizes, and API versions quoted in
+  prose to the template values actually deployed.
+- From the repository root, run
+  `lychee --include-fragments '**/*.md'` and fix every relative link, including
+  anchors into headings in other documents.
+
 ## Azure safety
 
 - Export `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` before any `az` command that
