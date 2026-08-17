@@ -31,10 +31,10 @@ assignment scoped to it.
 
 | `OS_IMAGE` | Publisher | Offer | SKU | Architecture |
 | --- | --- | --- | --- | --- |
-| `Ubuntu 24.04-LTS` (default) | Canonical | ubuntu-24_04-lts | server | x64 |
-| `Ubuntu 24.04-LTS (arm64)` | Canonical | ubuntu-24_04-lts | server-arm64 | Arm64 |
-| `Ubuntu 22.04-LTS` | Canonical | 0001-com-ubuntu-server-jammy | 22_04-lts-gen2 | x64 |
-| `Azure Linux 3` | MicrosoftCBLMariner | azure-linux-3 | azure-linux-3-gen2 | x64 |
+| `Ubuntu 26.04-LTS` (default) | Canonical | ubuntu-26_04-lts | server | x64 |
+| `Ubuntu 26.04-LTS (arm64)` | Canonical | ubuntu-26_04-lts | server-arm64 | Arm64 |
+| `Ubuntu 24.04-LTS` | Canonical | ubuntu-24_04-lts | server | x64 |
+| `Azure Linux 4` | microsoftazurelinux | azurelinux-4 | 4 | x64 |
 
 The Arm64 image automatically uses the Arm64-capable `Standard_D2ps_v6` size.
 The other images default to `Standard_D2s_v6`.
@@ -49,7 +49,7 @@ The other images default to `Standard_D2s_v6`.
 just group-create deploy-vmss
 
 # deploy the Arm64 image
-OS_IMAGE='Ubuntu 24.04-LTS (arm64)' just deploy-vmss
+OS_IMAGE='Ubuntu 26.04-LTS (arm64)' just deploy-vmss
 
 # empty the group while preserving it and its scoped role assignments
 just group-empty

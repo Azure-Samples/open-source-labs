@@ -40,8 +40,8 @@ assignment scoped to it.
 
 | `OS_IMAGE` | Publisher | Offer | SKU | Architecture | VM size |
 | --- | --- | --- | --- | --- | --- |
-| `Azure Linux 4` (default) | MicrosoftCBLMariner | azure-linux-3 | azure-linux-3-gen2 | x64 | Standard_D2s_v6 |
-| `Azure Linux 4 (arm64)` | MicrosoftCBLMariner | azure-linux-3 | azure-linux-3-arm64 | Arm64 | Standard_D2ps_v6 |
+| `Azure Linux 4` (default) | microsoftazurelinux | azurelinux-4 | 4 | x64 | Standard_D2s_v6 |
+| `Azure Linux 4 (arm64)` | microsoftazurelinux | azurelinux-4 | 4-arm64 | Arm64 | Standard_D2ps_v6 |
 
 Selecting the Arm64 image automatically uses the Arm64-capable
 `Standard_D2ps_v6` size. The x64 image defaults to `Standard_D2s_v6`.
