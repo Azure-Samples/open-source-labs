@@ -20,6 +20,7 @@ Deploying via the command line, which deploys the Bicep template directly, enabl
 - [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - The `diff` utility
 - [jq](https://jqlang.github.io/jq/download/)
+- The `dig` DNS lookup utility
 
 ## Cloud-init
 
@@ -49,7 +50,7 @@ Tailscale is deployed with [Tailscale SSH](https://tailscale.com/kb/1193/tailsca
 
 ### `tailscale-private`
 
-This template deployment is nearly identical to the tailscale deployment above. The only thing different here is that there is NO exposure of the Linux VM to the public internet (except for port 41641 over UDP for tailscale). It is advisable that you configure MagicDNS so that you can ssh in to the server using just the VM name.
+This template deployment is nearly identical to the tailscale deployment above, but the VM has no public IP address. The network security group retains the UDP port 41641 rule used by Tailscale. It is advisable that you configure MagicDNS so that you can ssh in to the server using just the VM name.
 
 ### `tailscale-postgres`
 
@@ -199,12 +200,12 @@ az deployment group create \
         cloudInit='tailscale-private' \
         env="$ENV" \
         vmSize="$VM_SIZE" \
-        osImage='Ubuntu 24.04-LTS (arm64)'
+        osImage='Ubuntu 26.04-LTS (arm64)'
 ```
 
-The `vmSize` parameter in the [vm.bicep](./vm.bicep) template currently accepts either `Standard_D2ps_v5` or `Standard_D2ps_v5`.
+The `vmSize` parameter in the [vm.bicep](./vm.bicep) template accepts either `Standard_D2ps_v5` or `Standard_D4ps_v5` for Arm64 deployments.
 
-When using any of these SKUs, you must make sure the `osImage` is set to `Ubuntu 24.04-LTS (arm64)` as this value will select the proper OS image that can be used with arm64 architecture.
+When using either Arm64 SKU, you must make sure the `osImage` is set to `Ubuntu 26.04-LTS (arm64)` as this value selects the matching Arm64 OS image.
 
 ## Delete Resources
 

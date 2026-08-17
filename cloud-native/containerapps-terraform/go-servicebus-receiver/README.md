@@ -3,12 +3,8 @@
 Command notes
 
 ```bash
-# initialize the project
-go mod init go-azure-service-bus-receiver
-
-# get dependencies
-go get github.com/Azure/azure-sdk-for-go/sdk/azidentity
-go get github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus
+# download dependencies from the existing module
+go mod download
 
 # set some environment variables
 export AZURE_SERVICEBUS_CONNECTION_STRING="Endpoint=sb://<YOUR_NAMESPACE>.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<YOUR_SHARED_ACCESS_KEY>"
@@ -22,5 +18,5 @@ go run main.go
 docker build -t go-azure-service-bus-receiver:v0.0.1 .
 
 # run the docker container
-docker run -e AZURE_SERVICEBUS_CONNECTION_STRING="Endpoint=sb://gogoaca.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=kTSEW7WbXXSa4QShfC5aLS2L+aVOs0iHjI+k+jwxxs4=" -e AZURE_SERVICEBUS_QUEUE_NAME=myqueue -e BATCH_SIZE=10 go-azure-service-bus-receiver:v0.0.1
+docker run -e AZURE_SERVICEBUS_CONNECTION_STRING="Endpoint=sb://<YOUR_NAMESPACE>.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<YOUR_SHARED_ACCESS_KEY>" -e AZURE_SERVICEBUS_QUEUE_NAME=myqueue -e BATCH_SIZE=10 go-azure-service-bus-receiver:v0.0.1
 ```

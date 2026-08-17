@@ -1,6 +1,6 @@
 # Explore Azure Container Apps, Terraform, KEDA, and Grafana
 
-In this lab you will deploy Azure Container Apps, Azure Container Registry, Azure Service Bus, Azure Managed Grafana, and potentially other Azure Services (i.e., Azure Virtual Network) using [Terraform](https://learn.hashicorp.com/tutorials/terraform/infrastructure-as-code?in=terraform/azure-get-started). At the time of this writing some services are not available in Hashicorp's `azurerm` [provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest) so we will deploy container apps and the managed Grafana service using the [AzAPI](https://learn.microsoft.com/azure/developer/terraform/overview-azapi-provider) provider.
+In this lab you will deploy Azure Container Apps, Azure Container Registry, Azure Service Bus, Azure Managed Grafana, and potentially other Azure Services (i.e., Azure Virtual Network) using [Terraform](https://learn.hashicorp.com/tutorials/terraform/infrastructure-as-code?in=terraform/azure-get-started). This configuration deploys Container Apps and Managed Grafana using the [AzAPI](https://learn.microsoft.com/azure/developer/terraform/overview-azapi-provider) provider and the remaining services using the `azurerm` [provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest).
 
 You will deploy two types of container apps to demonstrate Azure Container Apps autoscaling features. The `helloworld` container app is a simple app found in the Azure Container Apps [quickstart guide](https://learn.microsoft.com/azure/container-apps/get-started?tabs=bash). This container app will be configured for **HTTP scaling**. Upon creation of the resources, a `k6_scripts.js` file will appear in your directory. You can use to load test the application.
 
@@ -15,6 +15,7 @@ To import dashboards, navigate to your Azure Managed Grafana site, click on the 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
 - The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
 - A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Git](https://git-scm.com/)
 - [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - The [Terraform CLI](https://www.terraform.io/downloads)
 - [Go](https://go.dev/doc/install)
@@ -48,7 +49,7 @@ When running Terraform directly instead of using Just, set `TF_VAR_resource_grou
 Before you begin, clone this repository to your location of choice.
 
 ```bash
-git clone https://github.com/Azure-Samples/azure-opensource-labs.git
+git clone https://github.com/Azure-Samples/open-source-labs.git
 ```
 
 ## Deploy via Terraform CLI
@@ -85,11 +86,11 @@ The container apps will already have autoscaling fully configured and enabled.
 
 Open the [Azure portal](https://portal.azure.com).
 
-Navigate to the `rg-fittingshiner` resource group to explore the deployment and its configuration.
+Navigate to the `rg-`-prefixed resource group created by Terraform, or the existing resource group you supplied with `RESOURCE_GROUP`, to explore the deployment and its configuration.
 
 Next, use [k6](https://k6.io/) load testing tool to send load to the application URL.
 
-This will use the [k6_scripts.js](./k6_scripts.js) file that was created by [k6_load_test_script.tf](./k6_load_test_script.tf) based on the [k6_scripts.tpl](./k6_scripts.tpl) template, when we ran the `terraform apply` command. It will output the `const res = http.get('${INGRESS_FQDN}');` with the correct application URL for your `helloworld` app.
+This will use the generated `terraform/k6_scripts.js` file that was created by [k6_load_test_script.tf](./terraform/k6_load_test_script.tf) based on the [k6_scripts.tmpl](./terraform/k6_scripts.tmpl) template when we ran the `terraform apply` command. It will output the `const res = http.get('${INGRESS_FQDN}');` with the correct application URL for your `helloworld` app.
 
 Run the below command to send some load to your application.
 

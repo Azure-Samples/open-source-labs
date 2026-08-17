@@ -2,7 +2,7 @@
 
 In this lab you will deploy Azure Container Apps, Azure Database for PostgreSQL, and other Azure Services (Key Vault, Storage and Managed Identity) with [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview).
 
-You will deploy containers from GitHub [Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry) and built with GitHub [Actions](https://docs.github.com/en/actions/publishing-packages/publishing-docker-images#publishing-images-to-github-packages).
+By default, the Container App runs Microsoft's Container Apps hello-world image from Microsoft Container Registry.
 
 You will also import and have the opportunity to explore data from the [Cassini](https://en.wikipedia.org/wiki/Cassini%E2%80%93Huygens) mission to Saturn, thanks to Rob Conery ([@robconery](https://twitter.com/robconery))'s [A curious moon](https://bigmachine.io/products/a-curious-moon/)/[SQL in Orbit](https://bigmachine.io/product/sql-in-orbit/).
 
@@ -13,7 +13,7 @@ You will also import and have the opportunity to explore data from the [Cassini]
 - A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
 - [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - The `diff` utility
-- A [GitHub Account](https://github.com)
+- An existing resource group for validation
 
 ## Deploy via Azure Portal
 
@@ -110,14 +110,7 @@ az deployment sub create \
 
 ## Validate
 
-Run `just validate` with `RESOURCE_GROUP` unset to compile the templates, check the generated ARM JSON, and preview the subscription-scoped `main.bicep` deployment:
-
-```bash
-unset RESOURCE_GROUP
-just validate
-```
-
-If your credentials are scoped to an existing resource group, set `RESOURCE_GROUP` instead. Validation uses that group's location and runs resource-group-scoped previews of `containerapp.bicep` and `postgres-keyvault.bicep`, the two modules deployed by `main.bicep`:
+Set `RESOURCE_GROUP` to an existing resource group. Validation compiles every template, checks the generated ARM JSON, uses the group's location, and runs resource-group-scoped previews of `containerapp.bicep` and `postgres-keyvault.bicep`, the two modules deployed by `main.bicep`:
 
 ```bash
 export RESOURCE_GROUP='<EXISTING_RESOURCE_GROUP_NAME>'

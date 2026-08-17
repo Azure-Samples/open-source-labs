@@ -11,6 +11,7 @@ Azure Container Apps enables you to run microservices and containerized applicat
 - A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
 - [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - [Lychee](https://github.com/lycheeverse/lychee)
+- [curl](https://curl.se/)
 - A [GitHub Account](https://github.com)
 
 ## 1. Build and Containerize asw101/python-fastapi-pypy

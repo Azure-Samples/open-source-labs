@@ -6,7 +6,7 @@ languages:
 products:
 - azure
 description: "A collection of labs to help build Open Source & Cloud Native applications with Azure, Microsoft, GitHub, and open source developer tools, platforms, and projects."
-urlFragment: azure-opensource-labs
+urlFragment: open-source-labs
 ---
 
 # Azure Open Source Labs

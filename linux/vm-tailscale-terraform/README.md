@@ -182,6 +182,6 @@ Using this approach, you can add as many user-data types needed for your virtual
 
 To further secure your Tailscale API key, you could look to storing it in Azure Key Vault and using the [key vault secret](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/key_vault_secret) data type securely inject the API key at runtime.
 
-If you thought this was helpful, please give the repo a ⭐️ or let us know of any questions of feedback by filing a [new issue](https://github.com/Azure-Samples/azure-opensource-labs/issues/new).
+If you thought this was helpful, please give the repo a ⭐️ or let us know of any questions of feedback by filing a [new issue](https://github.com/Azure-Samples/open-source-labs/issues/new).
 
 Cheers!

@@ -13,6 +13,7 @@ Before using the portal, accept the Flatcar Marketplace terms; the generated for
 - [Butane](https://coreos.github.io/butane/) for regenerating `ignition.json`
 - The `diff` utility
 - The OpenSSH `ssh-keygen` utility
+- An existing resource group for validation
 
 ```console
 $ just
@@ -41,14 +42,7 @@ Available recipes:
 
 ## Validate
 
-Run `just validate` with `RESOURCE_GROUP` unset to check the generated ARM JSON and preview the subscription-scoped `main.bicep` deployment, including creation of its default resource group:
-
-```bash
-unset RESOURCE_GROUP
-just validate
-```
-
-If your credentials are scoped to an existing resource group, set `RESOURCE_GROUP` instead. Validation uses that group's location and runs resource-group-scoped previews of `vm.bicep` and `postgres.bicep`, passing the same location, generated SSH key, and loopback firewall address as `main.bicep`. The VM preview uses ARM's `Template` validation level because checking the Flatcar Marketplace agreement requires subscription-scope access; Azure still performs the group-scoped what-if and returns the resource changes.
+Set `RESOURCE_GROUP` to an existing resource group. Validation checks the generated ARM JSON and runs resource-group-scoped previews of `vm.bicep` and `postgres.bicep`, passing the group's location, a generated SSH key, and the same loopback firewall address as `main.bicep`. The VM preview uses ARM's `Template` validation level because checking the Flatcar Marketplace agreement requires subscription-scope access; Azure still performs the group-scoped what-if and returns the resource changes.
 
 ```bash
 export RESOURCE_GROUP='<EXISTING_RESOURCE_GROUP_NAME>'

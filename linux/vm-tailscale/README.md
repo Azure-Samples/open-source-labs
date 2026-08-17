@@ -14,7 +14,7 @@ Deploy an Azure Linux VM with [Tailscale SSH](https://tailscale.com/kb/1193/tail
 - [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - The `diff` utility
 - A [Tailscale](https://tailscale.com/) account
-- A Tailscale [Auth key](https://login.tailscale.com/admin/settings/keys) (one-off recommended)
+- Optionally, a Tailscale [Auth key](https://login.tailscale.com/admin/settings/keys) (one-off recommended)
 
 ## Quick Start
 
@@ -45,7 +45,7 @@ Or deploy using a local file:
 ```bash
 az deployment group create \
     --resource-group $RESOURCE_GROUP \
-    --template-file vm.bicep \
+    --template-file linux/vm-tailscale/vm.bicep \
     --parameters \
         cloudInit='tailscale' \
         env='{"tskey":"<YOUR_TAILSCALE_AUTH_KEY>"}'

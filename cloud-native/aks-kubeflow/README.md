@@ -7,6 +7,7 @@ This lab is the Advanced scenario for deployment of Kubeflow using [just](https:
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
 - The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
 - A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/quickstart), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Git](https://git-scm.com/)
 - [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - [curl](https://curl.se/)
 - [Go](https://go.dev/dl/) (only for the `password` recipe, which builds a small helper under [`tools/password`](tools/password))

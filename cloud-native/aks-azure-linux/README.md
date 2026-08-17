@@ -97,6 +97,7 @@ and `az aks nodepool add --help` for the accepted OS SKU values.
 - The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
 - A Bash shell, such as Linux, macOS, WSL, Azure Cloud Shell, or GitHub
   Codespaces
+- [Git](https://git-scm.com/)
 - [Just](https://just.systems/) (`brew install just`, or see the
   [installation guide](https://just.systems/man/en/packages.html))
 
@@ -111,8 +112,8 @@ az login
 Clone this repository and change to the lab directory:
 
 ```bash
-git clone https://github.com/Azure-Samples/azure-opensource-labs.git
-cd azure-opensource-labs/cloud-native/aks-azure-linux
+git clone https://github.com/Azure-Samples/open-source-labs.git
+cd open-source-labs/cloud-native/aks-azure-linux
 ```
 
 The [Justfile](./Justfile) wraps the Azure CLI and [Bicep](./aks.bicep)
