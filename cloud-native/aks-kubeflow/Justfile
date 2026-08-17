@@ -151,14 +151,12 @@ fetch-kubeflow:
         "OAUTH2_REDIRECT_URI=$oauth2_redirect_uri" \
         > "$release_dir/aks-overlay/params.env"
 
-    if [[ -f "$release_dir/aks-overlay/patches/dex-config.yaml.in" ]]; then
-        sed \
-            -e "s|@@DEX_ISSUER@@|$dex_issuer|g" \
-            -e "s|@@OAUTH2_REDIRECT_URI@@|$oauth2_redirect_uri|g" \
-            "$release_dir/aks-overlay/patches/dex-config.yaml.in" \
-            > "$release_dir/aks-overlay/patches/dex-config.yaml"
-        ! grep -q '@@' "$release_dir/aks-overlay/patches/dex-config.yaml"
-    fi
+    sed \
+        -e "s|@@DEX_ISSUER@@|$dex_issuer|g" \
+        -e "s|@@OAUTH2_REDIRECT_URI@@|$oauth2_redirect_uri|g" \
+        "$release_dir/aks-overlay/patches/dex-config.yaml.in" \
+        > "$release_dir/aks-overlay/patches/dex-config.yaml"
+    ! grep -q '@@' "$release_dir/aks-overlay/patches/dex-config.yaml"
 
 # Remove the downloaded and extracted Kubeflow release.
 clean-cache:
@@ -181,6 +179,8 @@ kubeflow: fetch-kubeflow
         sleep 20
         ((attempt += 1))
     done
+    source aks-overlay/params.env
+    printf 'Kubeflow URL: https://%s\n' "$KUBEFLOW_HOST"
 
 # Delete Kubeflow resources defined by the pinned release.
 kubeflow-delete: fetch-kubeflow
@@ -246,14 +246,6 @@ kubeflow-pods:
         kubectl get pods --namespace "$namespace"
     done
 
-# Forward local port 8080 to the Kubeflow ingress gateway.
-kubeflow-port:
-    kubectl port-forward svc/istio-ingressgateway --namespace istio-system 8080:80
-
-# Restart the Dex deployment.
-restart-dex:
-    kubectl rollout restart deployment dex --namespace auth
-
 # Deleting a resource group destroys any role assignment scoped to it, so where
 # your access is granted at the group scope rather than the subscription, reach
 # for this instead of group-delete.
@@ -282,64 +274,33 @@ _password-and-hash:
 password:
     @just _password-and-hash
 
-# Configure Dex with a generated password and record it in auth.md.
-configure-dex:
+# Configure Dex with a generated password kept only in the cluster and terminal.
+configure-dex: fetch-kubeflow
     #!/usr/bin/env bash
     set -euo pipefail
-    config_file="aks/manifests/common/dex/base/config-map.yaml"
-    git restore --source=HEAD -- "$config_file" auth.md
+    source versions.env
 
     credentials="$(just --quiet _password-and-hash)"
     password="${credentials#Password: }"
     password="${password%%$'\n'*}"
     hash="${credentials##*$'\n'Hash: }"
 
-    python3 -c \
-        'import sys; from pathlib import Path; path = Path(sys.argv[1]); old, new = sys.argv[2:]; text = path.read_text(); text.count(old) == 1 or sys.exit(f"expected exactly one occurrence of {old!r} in {path}"); path.write_text(text.replace(old, new))' \
-        "$config_file" \
-        'hash: $2y$12$4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72' \
-        "hash: $hash"
+    username="user@example.com"
+    source ".cache/community-distribution-${KUBEFLOW_VERSION}/aks-overlay/params.env"
 
-    python3 -c \
-        'import sys; from pathlib import Path; path = Path(sys.argv[1]); old, new = sys.argv[2:]; text = path.read_text(); text.count(old) == 1 or sys.exit(f"expected exactly one occurrence of {old!r} in {path}"); path.write_text(text.replace(old, new))' \
-        auth.md \
-        'Password: 12341234' \
-        "Password: $password"
+    kubectl create secret generic dex-passwords \
+        --namespace auth \
+        --from-literal="DEX_USER_PASSWORD=$hash" \
+        --dry-run=client \
+        --output yaml |
+        kubectl apply --filename -
+    kubectl rollout restart deployment/dex --namespace auth
+    kubectl rollout status deployment/dex --namespace auth --timeout=5m
 
-# Configure TLS for the ingress gateway's public IP address.
-configure-tls:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    ip="$(kubectl \
-        --namespace istio-system \
-        get service istio-ingressgateway \
-        --output 'jsonpath={.status.loadBalancer.ingress[0].ip}')"
-    if [[ -z "$ip" ]]; then
-        printf 'The istio-ingressgateway IP address is empty.\n' >&2
-        exit 1
-    fi
-    printf 'IP Address: %s\n' "$ip"
-
-    certificate_file="aks/certificate.yaml"
-    git restore --source=HEAD -- "$certificate_file"
-    python3 -c \
-        'import sys; from pathlib import Path; path = Path(sys.argv[1]); old, new = sys.argv[2:]; text = path.read_text(); text.count(old) == 1 or sys.exit(f"expected exactly one occurrence of {old!r} in {path}"); path.write_text(text.replace(old, new))' \
-        "$certificate_file" \
-        '192.168.0.5' \
-        "$ip"
-
-    python3 -c \
-        'import sys; from pathlib import Path; path = Path(sys.argv[1]); old, new = sys.argv[2:]; text = path.read_text(); text.count(old) == 1 or sys.exit(f"expected exactly one occurrence of {old!r} in {path}"); path.write_text(text.replace(old, new))' \
-        auth.md \
-        'URL: http://localhost:8080' \
-        "URL: https://$ip"
-
-    kubectl apply --filename "$certificate_file"
+    printf 'Username: %s\nPassword: %s\nURL: https://%s\n' \
+        "$username" "$password" "$KUBEFLOW_HOST"
 
 # Wait for the specified number of seconds.
 wait seconds:
     @printf 'waiting %ss\n' "{{ seconds }}"
     @sleep "{{ seconds }}"
-
-# Run the complete Kubeflow deployment and configuration sequence.
-kubeflow-all: kubeflow kubectl-ready restart-dex configure-tls

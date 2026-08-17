@@ -2,9 +2,10 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: dex
+  namespace: auth
 data:
   config.yaml: |
-    issuer: http://dex.auth.svc.cluster.local:5556/dex
+    issuer: @@DEX_ISSUER@@
     storage:
       type: kubernetes
       config:
@@ -19,14 +20,11 @@ data:
     enablePasswordDB: true
     staticPasswords:
     - email: user@example.com
-      hash: $2y$12$4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72
-      # https://github.com/dexidp/dex/pull/1601/commits
-      # FIXME: Use hashFromEnv instead
+      hashFromEnv: DEX_USER_PASSWORD
       username: user
       userID: "15841185641784"
     staticClients:
-    # https://github.com/dexidp/dex/pull/1664
     - idEnv: OIDC_CLIENT_ID
-      redirectURIs: ["/login/oidc"]
-      name: 'Dex Login Application'
+      redirectURIs: ["@@OAUTH2_REDIRECT_URI@@"]
+      name: "Dex Login Application"
       secretEnv: OIDC_CLIENT_SECRET

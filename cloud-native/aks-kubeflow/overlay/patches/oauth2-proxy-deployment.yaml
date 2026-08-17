@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  template:
+    spec:
+      containers:
+        - name: oauth2-proxy
+          env:
+            - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+              value: https://kubeflow-static-validation.eastus.cloudapp.azure.com/dex
+            - name: OAUTH2_PROXY_LOGIN_URL
+              value: https://kubeflow-static-validation.eastus.cloudapp.azure.com/dex/auth
+            - name: OAUTH2_PROXY_REDIRECT_URL
+              value: https://kubeflow-static-validation.eastus.cloudapp.azure.com/oauth2/callback
+            - name: OAUTH2_PROXY_RELATIVE_REDIRECT_URL
+              value: "false"

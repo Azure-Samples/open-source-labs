@@ -1,4 +1,95 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
 resources:
   - ../example
+  - ingress-class.yaml
+  - letsencrypt-issuer.yaml
+  - certificate.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: kubeflow-params
+    envs:
+      - params.env
+
+patches:
+  - path: patches/dex-config.yaml
+  - path: patches/dex-passwords.yaml
+  - path: patches/istio-gateway.yaml
+  - path: patches/istio-service.yaml
+  - path: patches/oauth2-proxy-deployment.yaml
+  - path: patches/oauth2-proxy-parameters.yaml
+  - path: patches/request-authentication.yaml
+    target:
+      group: security.istio.io
+      version: v1beta1
+      kind: RequestAuthentication
+      name: dex-jwt
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: kubeflow-params
+      fieldPath: data.DNS_LABEL
+    targets:
+      - select:
+          kind: Service
+          name: istio-ingressgateway
+          namespace: istio-system
+        fieldPaths:
+          - metadata.annotations.[service.beta.kubernetes.io/azure-dns-label-name]
+  - source:
+      kind: ConfigMap
+      name: kubeflow-params
+      fieldPath: data.KUBEFLOW_HOST
+    targets:
+      - select:
+          kind: Certificate
+          name: kubeflow-tls
+        fieldPaths:
+          - spec.dnsNames.0
+      - select:
+          group: networking.istio.io
+          kind: Gateway
+          name: kubeflow-gateway
+        fieldPaths:
+          - spec.servers.0.hosts.0
+  - source:
+      kind: ConfigMap
+      name: kubeflow-params
+      fieldPath: data.DEX_ISSUER
+    targets:
+      - select:
+          kind: Deployment
+          name: oauth2-proxy
+        fieldPaths:
+          - spec.template.spec.containers.[name=oauth2-proxy].env.[name=OAUTH2_PROXY_OIDC_ISSUER_URL].value
+      - select:
+          group: security.istio.io
+          kind: RequestAuthentication
+          name: dex-jwt
+        fieldPaths:
+          - spec.jwtRules.0.issuer
+  - source:
+      kind: ConfigMap
+      name: kubeflow-params
+      fieldPath: data.DEX_LOGIN_URL
+    targets:
+      - select:
+          kind: Deployment
+          name: oauth2-proxy
+        fieldPaths:
+          - spec.template.spec.containers.[name=oauth2-proxy].env.[name=OAUTH2_PROXY_LOGIN_URL].value
+  - source:
+      kind: ConfigMap
+      name: kubeflow-params
+      fieldPath: data.OAUTH2_REDIRECT_URI
+    targets:
+      - select:
+          kind: Deployment
+          name: oauth2-proxy
+        fieldPaths:
+          - spec.template.spec.containers.[name=oauth2-proxy].env.[name=OAUTH2_PROXY_REDIRECT_URL].value
