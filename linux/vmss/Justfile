@@ -1,11 +1,12 @@
 # Use a readable year-month resource group name instead of the old opaque YYMM00 format.
 resource_group := env_var_or_default("RESOURCE_GROUP", `date +%Y-%m` + "-vmss")
-location := env_var_or_default("LOCATION", "eastus")
+location := env_var_or_default("LOCATION", "canadacentral")
 vmss_name := env_var_or_default("VMSS_NAME", "vmss1")
 vmss_size := env_var_or_default("VMSS_SIZE", "Standard_D2s_v6")
 vmss_instance_count := env_var_or_default("VMSS_INSTANCE_COUNT", "1")
 vmss_os_disk_size := env_var_or_default("VMSS_OS_DISK_SIZE", "128")
-os_image := env_var_or_default("OS_IMAGE", "Ubuntu 24.04-LTS")
+os_image := env_var_or_default("OS_IMAGE", "Azure Linux 4")
+custom_data := env_var_or_default("CUSTOM_DATA", "none")
 environment := env_var_or_default("ENV", "{}")
 ip_allow := env_var_or_default("IP_ALLOW", "")
 ssh_key := env_var_or_default("SSH_KEY", "")
@@ -17,6 +18,7 @@ export VMSS_SIZE := vmss_size
 export VMSS_INSTANCE_COUNT := vmss_instance_count
 export VMSS_OS_DISK_SIZE := vmss_os_disk_size
 export OS_IMAGE := os_image
+export CUSTOM_DATA := custom_data
 export ENV := environment
 export IP_ALLOW := ip_allow
 export SSH_KEY := ssh_key
@@ -39,6 +41,7 @@ validate:
             "vmSize=$VMSS_SIZE" \
             "osDiskSize=$VMSS_OS_DISK_SIZE" \
             "osImage=$OS_IMAGE" \
+            "customData=$CUSTOM_DATA" \
             "allowIpPort22=127.0.0.1" \
             "instanceCount=$VMSS_INSTANCE_COUNT" \
             "env=$ENV" \
@@ -92,6 +95,7 @@ deploy-vmss:
         "vmSize=$VMSS_SIZE"
         "osDiskSize=$VMSS_OS_DISK_SIZE"
         "osImage=$OS_IMAGE"
+        "customData=$CUSTOM_DATA"
         "allowIpPort22=$ip_allow"
         "instanceCount=$VMSS_INSTANCE_COUNT"
         "env=$ENV"

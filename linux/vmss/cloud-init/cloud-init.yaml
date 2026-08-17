@@ -1,0 +1,11 @@
+#cloud-config
+
+write_files:
+  - path: /home/{0}/env.json
+    owner: {0}:{0}
+    permissions: '0600'
+    encoding: b64
+    content: {1}
+
+runcmd:
+  - [sudo, -H, -u, {0}, sh, -c, 'date --iso-8601=seconds > "$HOME/cloud-init-complete.txt"']
