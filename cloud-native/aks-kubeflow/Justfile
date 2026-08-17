@@ -54,21 +54,28 @@ credentials:
 aks-kubectl:
     az aks install-cli
 
-# Install kustomize 3.2.0 in /usr/local/bin.
+# Install the pinned Kustomize release in /usr/local/bin.
 ensure-kustomize:
     #!/usr/bin/env bash
     set -euo pipefail
+    source versions.env
     if [[ -z "${SUDO_USER:-}" ]]; then
         printf 'Run this recipe with sudo.\n' >&2
         exit 1
     fi
 
     case "$(uname -s)-$(uname -m)" in
-        Darwin-arm64|Darwin-x86_64)
-            asset="kustomize_3.2.0_darwin_amd64"
+        Darwin-arm64)
+            platform="darwin_arm64"
+            ;;
+        Darwin-x86_64)
+            platform="darwin_amd64"
+            ;;
+        Linux-aarch64|Linux-arm64)
+            platform="linux_arm64"
             ;;
         Linux-x86_64)
-            asset="kustomize_3.2.0_linux_amd64"
+            platform="linux_amd64"
             ;;
         *)
             printf 'Unsupported platform: %s-%s\n' "$(uname -s)" "$(uname -m)" >&2
@@ -76,26 +83,112 @@ ensure-kustomize:
             ;;
     esac
 
-    temp_file="$(mktemp)"
-    trap 'rm -f "$temp_file"' EXIT
+    asset="kustomize_${KUSTOMIZE_VERSION}_${platform}.tar.gz"
+    temp_dir="$(mktemp -d)"
+    trap 'rm -f "$temp_dir/$asset" "$temp_dir/kustomize"; rmdir "$temp_dir"' EXIT
     curl --fail --location --silent --show-error \
-        "https://github.com/kubernetes-sigs/kustomize/releases/download/v3.2.0/$asset" \
-        --output "$temp_file"
-    install -m 0755 "$temp_file" /usr/local/bin/kustomize
+        "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/$asset" \
+        --output "$temp_dir/$asset"
+    tar -xzf "$temp_dir/$asset" -C "$temp_dir"
+    install -m 0755 "$temp_dir/kustomize" /usr/local/bin/kustomize
 
-# Install Kubeflow from the cloned manifests, retrying transient apply failures.
-kubeflow:
+# Download, verify, and prepare the pinned Kubeflow release.
+fetch-kubeflow:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd manifests
-    while ! kustomize build example | kubectl apply -f -; do
+    source versions.env
+
+    archive=".cache/community-distribution-${KUBEFLOW_VERSION}.tar.gz"
+    release_dir=".cache/community-distribution-${KUBEFLOW_VERSION}"
+    temp_archive="${archive}.tmp"
+    trap 'rm -f "$temp_archive"' EXIT
+    mkdir -p .cache
+
+    curl --fail --location --silent --show-error \
+        "https://codeload.github.com/kubeflow/community-distribution/tar.gz/refs/tags/${KUBEFLOW_VERSION}" \
+        --output "$temp_archive"
+    mv "$temp_archive" "$archive"
+    echo "$KUBEFLOW_ARCHIVE_SHA256  $archive" | sha256sum --check --strict
+
+    rm -rf -- "$release_dir"
+    mkdir -p "$release_dir"
+    tar -xzf "$archive" --strip-components=1 -C "$release_dir"
+    cp -R overlay "$release_dir/aks-overlay"
+
+    domain="${DOMAIN:-}"
+    requested_dns_label="${DNS_LABEL:-}"
+    domain_label_pattern='[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?'
+    if [[ -n "$domain" ]] &&
+        { (( ${#domain} > 253 )) ||
+          [[ ! "$domain" =~ ^${domain_label_pattern}(\.${domain_label_pattern})+$ ]]; }; then
+        printf 'DOMAIN must be a lower-case ASCII FQDN without a scheme, path, port, wildcard, or trailing dot.\n' >&2
+        exit 1
+    fi
+    if [[ -n "$requested_dns_label" ]] &&
+        [[ ! "$requested_dns_label" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
+        printf 'DNS_LABEL must be 1-63 lower-case letters, digits, or hyphens and start and end with a letter or digit.\n' >&2
+        exit 1
+    fi
+
+    default_dns_label="kubeflow-static-validation"
+    default_kubeflow_host="kubeflow-static-validation.eastus.cloudapp.azure.com"
+    location="eastus"
+    dns_label="${requested_dns_label:-$default_dns_label}"
+    azure_host="${dns_label}.${location,,}.cloudapp.azure.com"
+    kubeflow_host="${domain:-$azure_host}"
+    dex_issuer="https://${kubeflow_host}/dex"
+    dex_login_url="https://${kubeflow_host}/dex/auth"
+    oauth2_redirect_uri="https://${kubeflow_host}/oauth2/callback"
+    if [[ -z "$requested_dns_label" ]]; then
+        test "$azure_host" = "$default_kubeflow_host"
+    fi
+
+    printf '%s\n' \
+        "DNS_LABEL=$dns_label" \
+        "KUBEFLOW_HOST=$kubeflow_host" \
+        "DEX_ISSUER=$dex_issuer" \
+        "DEX_LOGIN_URL=$dex_login_url" \
+        "OAUTH2_REDIRECT_URI=$oauth2_redirect_uri" \
+        > "$release_dir/aks-overlay/params.env"
+
+    if [[ -f "$release_dir/aks-overlay/patches/dex-config.yaml.in" ]]; then
+        sed \
+            -e "s|@@DEX_ISSUER@@|$dex_issuer|g" \
+            -e "s|@@OAUTH2_REDIRECT_URI@@|$oauth2_redirect_uri|g" \
+            "$release_dir/aks-overlay/patches/dex-config.yaml.in" \
+            > "$release_dir/aks-overlay/patches/dex-config.yaml"
+        ! grep -q '@@' "$release_dir/aks-overlay/patches/dex-config.yaml"
+    fi
+
+# Remove the downloaded and extracted Kubeflow release.
+clean-cache:
+    rm -rf -- .cache
+
+# Install Kubeflow from the pinned release, retrying transient apply failures.
+kubeflow: fetch-kubeflow
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source versions.env
+    cd ".cache/community-distribution-${KUBEFLOW_VERSION}"
+    attempt=1
+    while ! kustomize build aks-overlay |
+        kubectl apply --server-side --force-conflicts -f -; do
+        if (( attempt == 15 )); then
+            printf 'Failed after 15 attempts: kustomize build aks-overlay\n' >&2
+            exit 1
+        fi
         printf 'Retrying to apply resources\n'
-        sleep 10
+        sleep 20
+        ((attempt += 1))
     done
 
-# Delete Kubeflow resources defined by the cloned manifests.
-kubeflow-delete:
-    cd manifests && kustomize build example | kubectl delete -f -
+# Delete Kubeflow resources defined by the pinned release.
+kubeflow-delete: fetch-kubeflow
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source versions.env
+    cd ".cache/community-distribution-${KUBEFLOW_VERSION}"
+    kustomize build aks-overlay | kubectl delete -f -
 
 # Wait for every Kubeflow pod to become ready.
 kubectl-ready:
@@ -161,18 +254,6 @@ kubeflow-port:
 restart-dex:
     kubectl rollout restart deployment dex --namespace auth
 
-# Clone the configured Kubeflow manifests release.
-clone:
-    git clone https://github.com/kubeflow/manifests.git --branch "$KUBEFLOW_VERSION"
-
-# Discard changes in the cloned manifests repository.
-checkout:
-    git -C manifests restore --source=HEAD --worktree .
-
-# Remove the cloned manifests repository.
-clean:
-    rm -rf -- manifests
-
 # Deleting a resource group destroys any role assignment scoped to it, so where
 # your access is granted at the group scope rather than the subscription, reach
 # for this instead of group-delete.
@@ -200,10 +281,6 @@ _password-and-hash:
 # Generate a 32-character password and its cost-12 bcrypt hash.
 password:
     @just _password-and-hash
-
-# Copy the AKS-specific manifest overlays into the cloned manifests.
-patch:
-    cp -R aks/manifests .
 
 # Configure Dex with a generated password and record it in auth.md.
 configure-dex:
@@ -265,4 +342,4 @@ wait seconds:
     @sleep "{{ seconds }}"
 
 # Run the complete Kubeflow deployment and configuration sequence.
-kubeflow-all: clean clone configure-dex patch kubeflow kubectl-ready restart-dex configure-tls
+kubeflow-all: kubeflow kubectl-ready restart-dex configure-tls
