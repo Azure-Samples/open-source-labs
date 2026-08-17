@@ -24,6 +24,8 @@ This file contains the repository-level operational rules for changing a lab.
 
 ## Documentation contract
 
+- Consult [`docs/`](docs/README.md) for background beyond a single lab. Put
+  cross-lab explanations there instead of duplicating them across lab READMEs.
 - Generated ARM comparisons and Azure previews verify templates, not the prose
   beside them. Re-read a lab's README whenever its Justfile, template, or
   variables change; treat a stale claim as a defect, not untidiness.
