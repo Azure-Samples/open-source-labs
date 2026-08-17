@@ -2,6 +2,8 @@
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Flinux%2Fvm-azure-linux%2Fvm.json)
 
+The portal form requires an SSH public key because `sshKey` has no default.
+
 Deploy a vanilla Azure Linux 4 virtual machine with Bicep. The template follows
 the [Microsoft Learn Linux VM Bicep quickstart](https://learn.microsoft.com/azure/virtual-machines/linux/quick-create-bicep)
 and restricts SSH access to the caller's public IP address by default.

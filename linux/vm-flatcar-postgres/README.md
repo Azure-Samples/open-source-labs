@@ -1,5 +1,9 @@
 # Linux on Azure with Flatcar Linux and Azure Database for PostgreSQL
 
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Flinux%2Fvm-flatcar-postgres%2Fmain.json)
+
+Before using the portal, accept the Flatcar Marketplace terms; the generated form also requires an SSH public key in `sshKey`.
+
 ## Requirements
 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)

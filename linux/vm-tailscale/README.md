@@ -2,6 +2,8 @@
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Flinux%2Fvm-tailscale%2Fvm.json)
 
+In the portal form, select `tailscale` for `cloudInit`; the Tailscale auth key in `env` is optional.
+
 Deploy an Azure Linux VM with [Tailscale SSH](https://tailscale.com/kb/1193/tailscale-ssh/) — no public SSH ports, no SSH keys to manage. Connect securely over your [Tailscale tailnet](https://tailscale.com/kb/1136/tailnet/).
 
 ## Requirements

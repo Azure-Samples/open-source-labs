@@ -7,6 +7,8 @@ use [`../aks-azure-linux`](../aks-azure-linux); for a general-purpose Azure Linu
 4 virtual machine, use
 [`../../linux/vm-azure-linux`](../../linux/vm-azure-linux).
 
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Fcloud-native%2Faks-azure-container-linux%2Fmain.json)
+
 ## What Azure Container Linux is
 
 ACL is an immutable, container-optimized AKS operating system derived from

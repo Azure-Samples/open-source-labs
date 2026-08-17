@@ -10,6 +10,10 @@ The workload is this repository's own `go-hello` Go server, pinned by OCI image-
 curl https://<printed-hostname>/echo
 ```
 
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Fcloud-native%2Faks-https-gateway%2Fmain.json)
+
+The button deploys the ARM portion of the lab; the manual instructions also install the in-cluster HTTPS application stack.
+
 ## Requirements
 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-students))

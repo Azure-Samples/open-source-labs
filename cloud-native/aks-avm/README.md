@@ -4,6 +4,8 @@ This deliberately minimal lab follows the AVM managed cluster module's [using on
 
 The module is pinned to `0.14.0`. On 2026-08-11, this was verified as the newest release from the upstream [`version.json`](https://github.com/Azure/bicep-registry-modules/blob/main/avm/res/container-service/managed-cluster/version.json) and changelog, and by confirming that its public Microsoft Container Registry OCI manifest exists.
 
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Fcloud-native%2Faks-avm%2Faks.json)
+
 ## Requirements
 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)

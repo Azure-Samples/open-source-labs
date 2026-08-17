@@ -17,9 +17,13 @@ You will also import and have the opportunity to explore data from the [Cassini]
 
 ## Deploy via Azure Portal
 
-The link below will deploy Azure Container Apps, Azure Database for Postgres and Key Vault via a single ARM template, generated from [main.bicep](main.bicep). This template will also create a Resource Group for you.
+The full-lab template deploys Azure Container Apps, Azure Database for Postgres, and Key Vault, and creates a resource group:
 
-[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fazure-opensource-labs%2Fmain%2Fcloud-native%2Fcontainerapps-bicep%2Fmain.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Fcloud-native%2Fcontainerapps-bicep%2Fmain.json)
+
+The self-contained Container Apps template deploys into an existing resource group:
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Fcloud-native%2Fcontainerapps-bicep%2Fcontainerapp.json)
 
 ## Deploy via Azure CLI
 

@@ -5,6 +5,8 @@ recommended mode for new scale sets. Flexible replaces the legacy Uniform mode
 so each instance is a standard Azure VM with normal VM lifecycle, networking,
 RBAC, backup, and recovery APIs.
 
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Flinux%2Fvmss%2Fvmss.json)
+
 ## Requirements
 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)

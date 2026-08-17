@@ -4,7 +4,9 @@ Deploys [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/azure/aks/w
 
 ## Deploy via Azure Portal
 
-[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fazure-opensource-labs%2Fmain%2Fcloud-native%2Faks-arm%2Faks.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Fcloud-native%2Faks-arm%2Faks.json)
+
+The portal form requires values for `dnsPrefix`, `linuxAdminUsername`, and `sshRSAPublicKey`; these parameters have no defaults.
 
 ## Requirements
 
