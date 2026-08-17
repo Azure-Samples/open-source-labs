@@ -1,42 +1,54 @@
-# Preserve the original defaults, including the YYMM00 resource-group date format.
-resource_group := env_var_or_default("RESOURCE_GROUP", `date +%y%m00` + "-kubeflow")
+default:
+    @just --list
+
+resource_group := env_var_or_default("RESOURCE_GROUP", "")
 location := env_var_or_default("LOCATION", "eastus")
-aks_name := env_var_or_default("AKS_NAME", "aks1")
-aks_vm_size := env_var_or_default("AKS_VM_SIZE", "Standard_D2s_v5")
-aks_node_count := env_var_or_default("AKS_NODE_COUNT", "3")
-aks_kubernetes_version := env_var_or_default("AKS_KUBERNETES_VERSION", "1.29")
-kubeflow_version := env_var_or_default("KUBEFLOW_VERSION", "v1.6.1")
+aks_name := env_var_or_default("AKS_NAME", "aks-kubeflow")
 
 export RESOURCE_GROUP := resource_group
 export LOCATION := location
 export AKS_NAME := aks_name
-export AKS_VM_SIZE := aks_vm_size
-export AKS_NODE_COUNT := aks_node_count
-export AKS_KUBERNETES_VERSION := aks_kubernetes_version
-export KUBEFLOW_VERSION := kubeflow_version
 export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 
-default:
-    @just --list
+# Check generated ARM without changing Azure resources.
+validate-static:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source versions.env
+    diff -u main.json <(az bicep build --file main.bicep --stdout)
 
-# Create the Azure resource group.
-group-create:
-    az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
-
-# Create the Azure Kubernetes Service cluster.
-aks:
-    az aks create \
+# Check generated ARM and preview the AKS deployment without changing Azure resources.
+validate: validate-static
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source versions.env
+    : "${RESOURCE_GROUP:?Set RESOURCE_GROUP to an existing validation resource group}"
+    az deployment group what-if \
         --resource-group "$RESOURCE_GROUP" \
-        --name "$AKS_NAME" \
-        --node-count "$AKS_NODE_COUNT" \
-        --node-vm-size "$AKS_VM_SIZE" \
-        --kubernetes-version "$AKS_KUBERNETES_VERSION" \
-        --enable-addons monitoring \
-        --generate-ssh-keys
+        --template-file main.bicep \
+        --parameters \
+            "location=$LOCATION" \
+            "clusterName=$AKS_NAME" \
+            "kubernetesVersion=$AKS_KUBERNETES_VERSION" \
+        --no-pretty-print
+
+# Deploy the AKS cluster at resource-group scope.
+deploy-aks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source versions.env
+    : "${RESOURCE_GROUP:?Set RESOURCE_GROUP to an existing resource group}"
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file main.bicep \
+        --parameters \
+            "location=$LOCATION" \
+            "clusterName=$AKS_NAME" \
+            "kubernetesVersion=$AKS_KUBERNETES_VERSION"
 
 # Get credentials for the AKS cluster.
-aks-credentials:
-    az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME" --overwrite-existing
+credentials:
+    az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME" --admin --overwrite-existing
 
 # Install kubectl through the Azure CLI.
 aks-kubectl:
@@ -180,14 +192,6 @@ group-empty:
         --resource-group "$RESOURCE_GROUP" \
         --template-file "$empty_bicep" \
         --mode Complete
-
-# Delete the Azure resource group and everything in it.
-group-delete:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    printf 'Deleting RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
-    sleep 10
-    az group delete --name "$RESOURCE_GROUP" --yes
 
 [private]
 _password-and-hash:
