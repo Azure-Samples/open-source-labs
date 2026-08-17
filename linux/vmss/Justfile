@@ -51,10 +51,6 @@ validate:
 group-create:
     az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
 
-# Deleting a resource group destroys any role assignment scoped to it, so where
-# your access is granted at the group scope rather than the subscription, reach
-# for this instead of group-delete.
-
 # Empty the resource group, leaving the group itself in place.
 group-empty:
     #!/usr/bin/env bash
@@ -70,14 +66,6 @@ group-empty:
         --resource-group "$RESOURCE_GROUP" \
         --template-file "$empty_bicep" \
         --mode Complete
-
-# Delete the Azure resource group and everything in it.
-group-delete:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    printf 'Deleting RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
-    sleep 10
-    az group delete --resource-group "$RESOURCE_GROUP" --yes
 
 # Deploy vmss.bicep at resource group scope.
 deploy-vmss:

@@ -12,25 +12,18 @@ default:
 validate:
     #!/usr/bin/env bash
     set -euo pipefail
+    : "${RESOURCE_GROUP:?Set RESOURCE_GROUP to an existing validation resource group}"
     for template in *.bicep; do
         az bicep build --file "$template" --stdout >/dev/null
     done
     for stem in app containerapp main; do
         diff -u "$stem.json" <(az bicep build --file "$stem.bicep" --stdout)
     done
-    if [[ -n "$RESOURCE_GROUP" ]]; then
-        group_location="$(az group show --name "$RESOURCE_GROUP" --query location -o tsv)"
-        for template in containerapp postgres-keyvault; do
-            az deployment group what-if \
-                --resource-group "$RESOURCE_GROUP" \
-                --template-file "$template.bicep" \
-                --parameters "location=$group_location" \
-                --no-pretty-print
-        done
-    else
-        az deployment sub what-if \
-            --location "$LOCATION" \
-            --template-file main.bicep \
-            --parameters resourceGroup=validate-containerapps-bicep \
+    group_location="$(az group show --name "$RESOURCE_GROUP" --query location -o tsv)"
+    for template in containerapp postgres-keyvault; do
+        az deployment group what-if \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file "$template.bicep" \
+            --parameters "location=$group_location" \
             --no-pretty-print
-    fi
+    done
