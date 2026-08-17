@@ -24,14 +24,14 @@
     },
     {
       "path": "cloud-native/aks-azure-container-linux",
-      "last_validated": null,
-      "validated_by": null,
-      "method": "inferred",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+what-if",
       "required": "arm-diff+what-if"
     },
     {
       "path": "cloud-native/aks-azure-linux",
-      "last_validated": "2026-08-15",
+      "last_validated": "2026-08-17",
       "validated_by": "cmbox",
       "method": "what-if",
       "required": "what-if"
@@ -44,21 +44,10 @@
       "required": "terraform-plan"
     },
     {
-      "path": "cloud-native/aks-https",
-      "last_validated": "2022-08-25",
-      "validated_by": null,
-      "method": "inferred",
-      "required": "what-if",
-      "blocked": {
-        "reason": "out-of-scope",
-        "note": "excluded from this modernization"
-      }
-    },
-    {
       "path": "cloud-native/aks-https-gateway",
-      "last_validated": null,
-      "validated_by": null,
-      "method": "inferred",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+what-if",
       "required": "arm-diff+what-if"
     },
     {
