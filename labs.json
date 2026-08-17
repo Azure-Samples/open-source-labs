@@ -3,9 +3,9 @@
   "labs": [
     {
       "path": "cloud-native/aks-arm",
-      "last_validated": "2026-08-15",
+      "last_validated": "2026-08-17",
       "validated_by": "cmbox",
-      "method": "arm-diff+what-if",
+      "method": "arm-diff+deploy",
       "required": "arm-diff+what-if"
     },
     {
@@ -17,9 +17,9 @@
     },
     {
       "path": "cloud-native/aks-avm",
-      "last_validated": "2026-08-15",
+      "last_validated": "2026-08-17",
       "validated_by": "cmbox",
-      "method": "arm-diff+what-if",
+      "method": "arm-diff+deploy",
       "required": "arm-diff+what-if"
     },
     {
@@ -33,7 +33,7 @@
       "path": "cloud-native/aks-azure-linux",
       "last_validated": "2026-08-17",
       "validated_by": "cmbox",
-      "method": "what-if",
+      "method": "deploy",
       "required": "what-if"
     },
     {
@@ -47,7 +47,7 @@
       "path": "cloud-native/aks-https-gateway",
       "last_validated": "2026-08-17",
       "validated_by": "cmbox",
-      "method": "arm-diff+what-if",
+      "method": "arm-diff+deploy",
       "required": "arm-diff+what-if"
     },
     {
@@ -63,7 +63,7 @@
     },
     {
       "path": "cloud-native/containerapps-bicep",
-      "last_validated": "2026-08-16",
+      "last_validated": "2026-08-17",
       "validated_by": "cmbox",
       "method": "arm-diff+what-if",
       "required": "arm-diff+what-if"
@@ -105,14 +105,14 @@
     },
     {
       "path": "linux/vm-azure-linux",
-      "last_validated": "2026-08-15",
+      "last_validated": "2026-08-17",
       "validated_by": "cmbox",
-      "method": "arm-diff+deploy",
+      "method": "arm-diff+what-if",
       "required": "arm-diff+what-if"
     },
     {
       "path": "linux/vm-flatcar-postgres",
-      "last_validated": "2026-08-16",
+      "last_validated": "2026-08-17",
       "validated_by": "cmbox",
       "method": "arm-diff+what-if",
       "required": "arm-diff+what-if"
@@ -133,9 +133,9 @@
     },
     {
       "path": "linux/vmss",
-      "last_validated": "2026-08-15",
+      "last_validated": "2026-08-17",
       "validated_by": "cmbox",
-      "method": "arm-diff+deploy",
+      "method": "arm-diff+what-if",
       "required": "arm-diff+what-if"
     }
   ]
