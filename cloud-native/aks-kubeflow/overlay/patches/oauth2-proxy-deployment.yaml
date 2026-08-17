@@ -4,6 +4,15 @@ metadata:
   name: oauth2-proxy
   namespace: oauth2-proxy
 spec:
+  # One replica, deliberately. oauth2-proxy holds the PKCE code_verifier and
+  # CSRF state in the instance that starts a login, and this release configures
+  # no shared session store. With more than one replica a callback that lands on
+  # a different instance fails token exchange with
+  # `invalid_grant: Invalid code_verifier`, while Dex logs the login as
+  # successful. That is an intermittent, roughly even-odds login failure which
+  # presents as an opaque error page. Do not scale this up without first
+  # configuring shared session storage.
+  replicas: 1
   template:
     spec:
       containers:
