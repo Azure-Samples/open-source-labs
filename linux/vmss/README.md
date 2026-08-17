@@ -24,15 +24,13 @@ Available recipes:
     default
     deploy-vmss  # Deploy vmss.bicep at resource group scope.
     group-create # Create the Azure resource group.
-    group-delete # Delete the Azure resource group and everything in it.
     group-empty  # Empty the resource group, leaving the group itself in place.
+    validate     # Check generated ARM and preview the VM scale set deployment.
     who-am-i     # Print the caller's public IP address.
 ```
 
 `group-empty` deploys an empty template in Complete mode, removing the contents
-but leaving the group itself. Prefer it over `group-delete` where your access is
-granted at the resource-group scope, since deleting the group destroys any role
-assignment scoped to it.
+but leaving the group itself and preserving any role assignments scoped to it.
 
 ## OS images
 
@@ -101,7 +99,4 @@ CUSTOM_DATA=cloud-init ENV='{"HELLO":"world"}' just deploy-vmss
 
 # empty the group while preserving it and its scoped role assignments
 just group-empty
-
-# or delete the group and everything in it
-just group-delete
 ```

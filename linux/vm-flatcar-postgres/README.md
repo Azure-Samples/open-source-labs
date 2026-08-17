@@ -29,7 +29,6 @@ Available recipes:
     ensure-butane      # Install Butane v0.17.0 on Apple silicon macOS.
     env                # Print sample PostgreSQL environment variables.
     group-create       # Create the Azure resource group.
-    group-delete       # Delete the Azure resource group and everything in it.
     group-empty        # Empty the resource group, leaving the group itself in place.
     password           # Print a securely generated password.
     psql-command       # Print the psql command from the PostgreSQL deployment.
@@ -37,6 +36,7 @@ Available recipes:
     ssh-command        # Print the SSH command from the VM deployment.
     tailscale-deploy   # Run Tailscale on the VM through Docker.
     tailscale-logs     # Print the Tailscale container logs.
+    validate           # Check generated ARM and preview the deployment.
 ```
 
 ## Validate
