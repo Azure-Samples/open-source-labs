@@ -70,3 +70,32 @@ func TestGenerate(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateBcryptHash(t *testing.T) {
+	validHash, err := bcrypt.GenerateFromPassword([]byte("test-password"), bcryptCost)
+	if err != nil {
+		t.Fatalf("generate valid hash: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		hash    string
+		wantErr bool
+	}{
+		{name: "valid", hash: string(validHash)},
+		{name: "empty", hash: "", wantErr: true},
+		{name: "not bcrypt", hash: "not-a-bcrypt-hash", wantErr: true},
+		{name: "truncated", hash: string(validHash[:len(validHash)-1]), wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateBcryptHash(test.hash)
+			if test.wantErr && err == nil {
+				t.Fatal("validateBcryptHash() succeeded, want error")
+			}
+			if !test.wantErr && err != nil {
+				t.Fatalf("validateBcryptHash() error = %v", err)
+			}
+		})
+	}
+}

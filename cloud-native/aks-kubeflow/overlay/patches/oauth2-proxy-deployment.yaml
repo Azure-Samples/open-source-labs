@@ -17,3 +17,5 @@ spec:
               value: https://kubeflow-static-validation.eastus.cloudapp.azure.com/oauth2/callback
             - name: OAUTH2_PROXY_RELATIVE_REDIRECT_URL
               value: "false"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"

@@ -1,0 +1,18 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: istio-ingressgateway-require-jwt
+  namespace: istio-system
+spec:
+  rules:
+    - from:
+        - source:
+            notRequestPrincipals:
+              - "*"
+      to:
+        - operation:
+            notPaths:
+              - /dex/*
+              - /dex/**
+              - /oauth2/*
+              - /.well-known/acme-challenge/*

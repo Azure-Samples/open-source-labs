@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"regexp"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -26,6 +27,8 @@ const (
 
 	bcryptCost = 12
 )
+
+var bcryptPattern = regexp.MustCompile(`^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$`)
 
 // take draws n distinct runes from pool without replacement.
 func take(pool []rune, n int) ([]rune, []rune, error) {
@@ -68,7 +71,34 @@ func generate() (string, error) {
 	return string(shuffled), nil
 }
 
+func validateBcryptHash(hash string) error {
+	if !bcryptPattern.MatchString(hash) {
+		return fmt.Errorf("expected a 60-character bcrypt hash")
+	}
+	cost, err := bcrypt.Cost([]byte(hash))
+	if err != nil {
+		return fmt.Errorf("invalid bcrypt hash: %w", err)
+	}
+	if cost != bcryptCost {
+		return fmt.Errorf("bcrypt cost is %d, want %d", cost, bcryptCost)
+	}
+	return nil
+}
+
 func main() {
+	if len(os.Args) == 3 && os.Args[1] == "--validate-hash" {
+		if err := validateBcryptHash(os.Args[2]); err != nil {
+			fmt.Fprintf(os.Stderr, "password: refusing invalid Dex password hash: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	machineOutput := len(os.Args) == 2 && os.Args[1] == "--machine"
+	if len(os.Args) != 1 && !machineOutput {
+		fmt.Fprintln(os.Stderr, "usage: password [--machine | --validate-hash HASH]")
+		os.Exit(2)
+	}
+
 	password, err := generate()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "password: %v\n", err)
@@ -81,5 +111,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	if machineOutput {
+		fmt.Printf("%s\n%s\n", password, hash)
+		return
+	}
 	fmt.Printf("Password: %s\nHash: %s\n", password, hash)
 }

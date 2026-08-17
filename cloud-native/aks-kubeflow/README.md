@@ -18,8 +18,11 @@ The Kubeflow `26.03.1` `example` installation is downloaded from
 verified with SHA-256, and rendered with the lab's `overlay/`. The overlay keeps
 Kubeflow's Istio ingress and Dex authentication, uses cert-manager for a
 publicly trusted ECDSA certificate, and exposes only HTTPS dashboard traffic.
-Port 80 is reserved for temporary ACME HTTP-01 challenge Ingresses and otherwise
-returns 404.
+Upstream's Istio ingress Gateway retains port 80 for temporary ACME HTTP-01
+challenge Ingresses. The overlay excludes only
+`/.well-known/acme-challenge/*` from Kubeflow's OAuth2 and JWT authorization
+policies; all other unauthenticated HTTP requests remain denied, and no
+dashboard route is served over HTTP.
 
 | Component | Version or requirement |
 | --- | --- |
@@ -57,21 +60,16 @@ and `AKS_NAME` defaults to `aks-kubeflow`. `DOMAIN` and `DNS_LABEL` are optional
 and default to empty. The Dex issuer, login URL, OAuth2 redirect URI, and
 Kubeflow hostname are derived values, not independent settings.
 
-> **Phase 4 checkpoint:** This phase establishes the final recipe and
-> documentation contract but does not implement Phase 6's deployment-output
-> lookup or custom-domain DNS instruction output. Do not run the deployment
-> sequence from this checkpoint. Phase 5 adds only a non-mutating Azure
-> what-if; Phase 6 makes the documented deployment paths operational.
-
 ## Recipes
 
 ```console
 Available recipes:
     clean-cache     # Remove the downloaded and extracted Kubeflow release.
+    configure-dex   # Generate and apply runtime Dex credentials, then restart authentication.
     credentials     # Get administrator credentials for the AKS cluster.
     default
     deploy-aks      # Deploy the AKS cluster at resource-group scope.
-    deploy-kubeflow # Install pinned Kubeflow and configure runtime Dex credentials.
+    deploy-kubeflow # Install pinned Kubeflow and configure its runtime Dex credentials.
     e2e             # Check the public HTTPS endpoint with trusted TLS.
     fetch-kubeflow  # Download, verify, and prepare the pinned Kubeflow release.
     group-empty     # Empty the resource group while preserving it and its scoped access.
@@ -104,16 +102,26 @@ just group-empty
 ```
 
 `deploy-kubeflow` applies the pinned upstream release with server-side apply and
-a bounded retry loop. It generates a 32-character password and cost-12 bcrypt
+a bounded retry loop, then calls `configure-dex`. The independently runnable
+`configure-dex` recipe generates a 32-character password and cost-12 bcrypt
 hash, replaces the unusable rendered Dex sentinel through
-`Secret/dex-passwords`, restarts Dex, and prints the username, password, and
-HTTPS URL once. It does not write credentials to a file. Save the printed
-password in an appropriate secret manager if the deployment must outlive the
-terminal session.
+`Secret/dex-passwords`, rejects incomplete or malformed hashes before updating
+the Secret, restarts Dex, forces Istio to fetch the recovered Dex signing keys,
+waits for oauth2-proxy readiness, and prints the generated values once.
+`deploy-kubeflow` obtains the default DNS label, hostname, and
+location from the completed Bicep deployment and waits for the Istio ingress
+address. Neither recipe writes credentials to a file. Save the printed password
+in an appropriate secret manager if the deployment must outlive the terminal
+session.
+
+Azure CLI versions have emitted deployment-output TSV as either one
+tab-delimited record or one value per line. The recipe normalizes both forms
+before validating the three required outputs.
 
 `wait-ready` performs bounded pod readiness checks. `e2e` reads the selected
 hostname from `Certificate/kubeflow-tls` and requires the public endpoint to
-respond over HTTPS with normal CA verification.
+redirect an unauthenticated request to Dex over HTTPS with normal CA
+verification.
 
 ## Select the HTTPS endpoint
 
@@ -140,8 +148,8 @@ export DOMAIN='kubeflow.example.com'
 export DNS_LABEL='my-kubeflow'
 ```
 
-In the Phase 6 implementation, run through `just deploy-kubeflow`, then create
-the unproxied DNS record it prints before continuing with `just wait-ready`.
+Run through `just deploy-kubeflow`, then create the unproxied DNS record it
+prints before continuing with `just wait-ready`.
 Prefer:
 
 ```text
@@ -157,7 +165,9 @@ The record must send `/.well-known/acme-challenge/` on port 80 directly to the
 Istio ingress. Do not put it behind a proxy or provider-side forced HTTPS:
 Let's Encrypt normally renews a 90-day certificate after roughly 60 days, and
 an interception added later can leave a working deployment unable to renew.
-The certificate contains only `DOMAIN`, never the Azure alias target.
+Only that path bypasses OAuth2 and JWT checks; all other unauthenticated HTTP
+traffic is denied. The certificate contains only `DOMAIN`, never the Azure
+alias target.
 
 ## Cleanup
 

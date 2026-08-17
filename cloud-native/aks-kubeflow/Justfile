@@ -101,6 +101,9 @@ validate-static:
     grep -Fq 'credentialName: kubeflow-tls' "$rendered"
     grep -Fq 'https://acme-v02.api.letsencrypt.org/directory' "$rendered"
     grep -Fq 'DEX_USER_PASSWORD: INVALID-MUST-BE-REPLACED-BEFORE-LOGIN' "$rendered"
+    grep -Fq 'name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON' "$rendered"
+    require_equal "ACME authentication exclusions" "2" \
+        "$(grep -Fc -- '- /.well-known/acme-challenge/*' "$rendered")"
 
     if grep -Eq '12341234|\$2y\$12\$4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72|@@' \
         "$rendered"; then
@@ -136,7 +139,7 @@ validate-static:
     test ! -e BASIC-CLI.md
     test ! -e auth.md
     test ! -d aks
-    expected_recipes='default validate-static validate fetch-kubeflow clean-cache deploy-aks credentials deploy-kubeflow wait-ready e2e group-empty password'
+    expected_recipes='default validate-static validate fetch-kubeflow clean-cache deploy-aks credentials configure-dex deploy-kubeflow wait-ready e2e group-empty password'
     require_equal "public recipe list" "$expected_recipes" "$(just --summary --unsorted)"
 
 # Run static validation and preview the AKS deployment.
@@ -249,12 +252,112 @@ credentials:
         --admin \
         --overwrite-existing
 
-# Install pinned Kubeflow and configure runtime Dex credentials.
+# Generate and apply runtime Dex credentials, then restart authentication.
+configure-dex:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    credential_output="$(
+        cd "{{ justfile_directory() }}/tools/password"
+        go run . --machine
+    )"
+    mapfile -t credentials <<< "$credential_output"
+    if (( ${#credentials[@]} != 2 )) ||
+       [[ -z "${credentials[0]}" || -z "${credentials[1]}" ]]; then
+        printf 'Password tool returned incomplete machine output; refusing to update dex-passwords.\n' >&2
+        exit 1
+    fi
+    password="${credentials[0]}"
+    hash="${credentials[1]}"
+    (
+        cd "{{ justfile_directory() }}/tools/password"
+        go run . --validate-hash "$hash"
+    )
+
+    kubectl create secret generic dex-passwords \
+        --namespace auth \
+        --from-literal="DEX_USER_PASSWORD=$hash" \
+        --dry-run=client \
+        --output yaml |
+        kubectl apply --filename - >&2
+    kubectl rollout restart deployment/dex --namespace auth >&2
+    kubectl rollout status deployment/dex --namespace auth --timeout=5m >&2
+    jwks_refresh="$(date -u +%s)"
+    jwks_uri="http://dex.auth.svc.cluster.local:5556/dex/keys?refresh=${jwks_refresh}"
+    kubectl patch requestauthentication/dex-jwt \
+        --namespace istio-system \
+        --type=json \
+        --patch="[
+            {
+                \"op\": \"replace\",
+                \"path\": \"/spec/jwtRules/0/jwksUri\",
+                \"value\": \"${jwks_uri}\"
+            }
+        ]" >&2
+    kubectl rollout status deployment/oauth2-proxy \
+        --namespace oauth2-proxy --timeout=5m >&2
+
+    printf 'Password: %s\nHash: %s\n' "$password" "$hash"
+
+# Install pinned Kubeflow and configure its runtime Dex credentials.
 deploy-kubeflow: fetch-kubeflow
     #!/usr/bin/env bash
     set -euo pipefail
     source versions.env
     release_dir=".cache/community-distribution-${KUBEFLOW_VERSION}"
+    deployment_name="$(basename "${PWD}/main.bicep" .bicep)"
+
+    if ! deployment_output_tsv="$(
+        az deployment group show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$deployment_name" \
+            --query '[
+                properties.outputs.dnsLabel.value,
+                properties.outputs.kubeflowHostname.value,
+                properties.outputs.location.value
+            ]' \
+            --output tsv
+    )"; then
+        printf 'Failed to read AKS deployment outputs.\n' >&2
+        exit 1
+    fi
+    mapfile -t deployment_outputs < <(
+        printf '%s\n' "$deployment_output_tsv" | tr '\t' '\n'
+    )
+    if (( ${#deployment_outputs[@]} != 3 )); then
+        printf 'Expected three AKS deployment outputs, got %d.\n' \
+            "${#deployment_outputs[@]}" >&2
+        exit 1
+    fi
+    default_dns_label="${deployment_outputs[0]}"
+    default_kubeflow_host="${deployment_outputs[1]}"
+    deployment_location="${deployment_outputs[2]}"
+    : "${default_dns_label:?AKS deployment output dnsLabel is empty}"
+    : "${default_kubeflow_host:?AKS deployment output kubeflowHostname is empty}"
+    : "${deployment_location:?AKS deployment output location is empty}"
+
+    dns_label="${DNS_LABEL:-$default_dns_label}"
+    azure_host="${dns_label}.${deployment_location,,}.cloudapp.azure.com"
+    kubeflow_host="${DOMAIN:-$azure_host}"
+    dex_issuer="https://${kubeflow_host}/dex"
+    dex_login_url="https://${kubeflow_host}/dex/auth"
+    oauth2_redirect_uri="https://${kubeflow_host}/oauth2/callback"
+    if [[ -z "${DNS_LABEL:-}" ]]; then
+        test "$azure_host" = "$default_kubeflow_host"
+    fi
+
+    printf '%s\n' \
+        "DNS_LABEL=$dns_label" \
+        "KUBEFLOW_HOST=$kubeflow_host" \
+        "DEX_ISSUER=$dex_issuer" \
+        "DEX_LOGIN_URL=$dex_login_url" \
+        "OAUTH2_REDIRECT_URI=$oauth2_redirect_uri" \
+        > "$release_dir/aks-overlay/params.env"
+    sed \
+        -e "s|@@DEX_ISSUER@@|$dex_issuer|g" \
+        -e "s|@@OAUTH2_REDIRECT_URI@@|$oauth2_redirect_uri|g" \
+        "$release_dir/aks-overlay/patches/dex-config.yaml.in" \
+        > "$release_dir/aks-overlay/patches/dex-config.yaml"
+    ! grep -q '@@' "$release_dir/aks-overlay/patches/dex-config.yaml"
 
     cd "$release_dir"
     attempt=1
@@ -270,63 +373,65 @@ deploy-kubeflow: fetch-kubeflow
     done
     cd - >/dev/null
 
-    credentials="$(just --quiet _password-and-hash)"
+    credentials="$(just --quiet configure-dex)"
     password="${credentials#Password: }"
     password="${password%%$'\n'*}"
     hash="${credentials##*$'\n'Hash: }"
     username="user@example.com"
     source "$release_dir/aks-overlay/params.env"
 
-    kubectl create secret generic dex-passwords \
-        --namespace auth \
-        --from-literal="DEX_USER_PASSWORD=$hash" \
-        --dry-run=client \
-        --output yaml |
-        kubectl apply --filename -
-    kubectl rollout restart deployment/dex --namespace auth
-    kubectl rollout status deployment/dex --namespace auth --timeout=5m
+    ingress_ip=""
+    for attempt in {1..60}; do
+        ingress_ip="$(
+            kubectl get service istio-ingressgateway \
+                --namespace istio-system \
+                --output=jsonpath='{.status.loadBalancer.ingress[0].ip}'
+        )"
+        if [[ -n "$ingress_ip" ]]; then
+            break
+        fi
+        if (( attempt < 60 )); then
+            sleep 10
+        fi
+    done
+    if [[ -z "$ingress_ip" ]]; then
+        printf 'Istio ingress did not receive an IP address within 10 minutes.\n' >&2
+        kubectl describe service istio-ingressgateway --namespace istio-system >&2
+        exit 1
+    fi
 
-    printf 'Username: %s\nPassword: %s\nURL: https://%s\n' \
-        "$username" "$password" "$KUBEFLOW_HOST"
+    printf 'Username: %s\nPassword: %s\nURL: https://%s\nIngress IP: %s\n' \
+        "$username" "$password" "$kubeflow_host" "$ingress_ip"
+    if [[ -n "$DOMAIN" ]]; then
+        printf 'Create this unproxied DNS record before running wait-ready:\n'
+        printf '%s CNAME %s\n' "$DOMAIN" "$azure_host"
+        printf 'Alternatively: %s A %s\n' "$DOMAIN" "$ingress_ip"
+    fi
 
 # Wait for every Kubeflow pod to become ready.
 wait-ready:
     #!/usr/bin/env bash
     set -euo pipefail
-    namespaces=(
-        cert-manager
-        istio-system
-        auth
-        knative-eventing
-        knative-serving
-        kubeflow
-        kubeflow-user-example-com
-    )
-
-    check_ready() {
-        local namespace
-        for namespace in "${namespaces[@]}"; do
-            kubectl wait \
-                --for=condition=Ready \
-                pods \
-                --all \
-                --namespace "$namespace" \
-                --timeout=30s || return
-        done
-    }
-
-    for attempt in {1..10}; do
-        if check_ready; then
-            exit 0
-        fi
-        if (( attempt < 10 )); then
-            printf 'attempt %d of 10 failed; waiting 60 seconds.\n' "$attempt"
-            sleep 60
-        fi
-    done
-
-    printf 'Exceeded 10 readiness attempts.\n' >&2
-    exit 1
+    if ! kubectl wait --for=condition=Ready pods --all --all-namespaces \
+        --field-selector=status.phase!=Succeeded --timeout=20m; then
+        printf 'Pods that did not become ready:\n' >&2
+        kubectl get pods --all-namespaces \
+            --field-selector=status.phase!=Succeeded \
+            --output=jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.status.conditions[?(@.type=="Ready")].status}{"\t"}{.status.phase}{"\n"}{end}' |
+            awk -F '\t' '$3 != "True"' >&2 || true
+        printf 'Recent namespace events:\n' >&2
+        kubectl get events --all-namespaces \
+            --sort-by='.metadata.creationTimestamp' |
+            tail -n 200 >&2 || true
+        exit 1
+    fi
+    kubectl wait --for=condition=Ready certificate/kubeflow-tls \
+        --namespace istio-system --timeout=15m
+    kubectl rollout status deployment/dex --namespace auth --timeout=5m
+    kubectl rollout status deployment/oauth2-proxy --namespace oauth2-proxy --timeout=5m
+    kubectl get service istio-ingressgateway --namespace istio-system \
+        --output=jsonpath='{.status.loadBalancer.ingress[0].ip}'
+    printf '\n'
 
 # Check the public HTTPS endpoint with trusted TLS.
 e2e:
@@ -339,13 +444,14 @@ e2e:
     )"
     result="$(
         curl --silent --show-error --output /dev/null \
-            --write-out '%{http_code} %{ssl_verify_result}' \
+            --write-out '%{http_code} %{ssl_verify_result} %{redirect_url}' \
             "https://${host}/"
     )"
-    read -r status ssl_verify_result <<< "$result"
+    read -r status ssl_verify_result redirect_url <<< "$result"
     test "$ssl_verify_result" = "0"
-    [[ "$status" == 2?? || "$status" == 3?? ]]
-    printf 'HTTPS endpoint: https://%s/ (%s, TLS verification %s)\n' \
+    test "$status" = "302"
+    [[ "$redirect_url" == "https://${host}/dex/auth?"* ]]
+    printf 'HTTPS endpoint: https://%s/ redirects to Dex (%s, TLS verification %s)\n' \
         "$host" "$status" "$ssl_verify_result"
 
 # Empty the resource group while preserving it and its scoped access.

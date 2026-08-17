@@ -1,0 +1,18 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: istio-ingressgateway-oauth2-proxy
+  namespace: istio-system
+spec:
+  rules:
+    - when:
+        - key: request.headers[authorization]
+          notValues:
+            - "*"
+      to:
+        - operation:
+            notPaths:
+              - /dex/*
+              - /dex/**
+              - /oauth2/*
+              - /.well-known/acme-challenge/*

@@ -21,6 +21,7 @@ patches:
   - path: patches/istio-gateway.yaml
   - path: patches/istio-service.yaml
   - path: patches/oauth2-proxy-deployment.yaml
+  - path: patches/oauth2-proxy-authorization.yaml
   - path: patches/oauth2-proxy-parameters.yaml
   - path: patches/request-authentication.yaml
     target:
@@ -28,6 +29,7 @@ patches:
       version: v1beta1
       kind: RequestAuthentication
       name: dex-jwt
+  - path: patches/require-jwt-authorization.yaml
 
 replacements:
   - source:
