@@ -32,6 +32,7 @@ param osDiskSize int = 256
   'Ubuntu 26.04-LTS (arm64)'
   'Ubuntu 24.04-LTS'
   'Azure Linux 4'
+  'Azure Linux 4 (arm64)'
 ])
 param osImage string = 'Azure Linux 4'
 
@@ -116,34 +117,60 @@ var kvCustomData = {
   'cloud-init': base64(customDataCloudInit)
 }
 
-var kvImageReference = {
+var kvImages = {
   'Ubuntu 26.04-LTS': {
-    publisher: 'Canonical'
-    offer: 'ubuntu-26_04-lts'
-    sku: 'server'
-    version: 'latest'
+    architecture: 'x64'
+    reference: {
+      publisher: 'Canonical'
+      offer: 'ubuntu-26_04-lts'
+      sku: 'server'
+      version: 'latest'
+    }
   }
   'Ubuntu 26.04-LTS (arm64)': {
-    publisher: 'Canonical'
-    offer: 'ubuntu-26_04-lts'
-    sku: 'server-arm64'
-    version: 'latest'
+    architecture: 'arm64'
+    reference: {
+      publisher: 'Canonical'
+      offer: 'ubuntu-26_04-lts'
+      sku: 'server-arm64'
+      version: 'latest'
+    }
   }
   'Ubuntu 24.04-LTS': {
-    publisher: 'Canonical'
-    offer: 'ubuntu-24_04-lts'
-    sku: 'server'
-    version: 'latest'
+    architecture: 'x64'
+    reference: {
+      publisher: 'Canonical'
+      offer: 'ubuntu-24_04-lts'
+      sku: 'server'
+      version: 'latest'
+    }
   }
   'Azure Linux 4': {
-    publisher: 'microsoftazurelinux'
-    offer: 'azurelinux-4'
-    sku: '4'
-    version: 'latest'
+    architecture: 'x64'
+    reference: {
+      publisher: 'microsoftazurelinux'
+      offer: 'azurelinux-4'
+      sku: '4'
+      version: 'latest'
+    }
+  }
+  'Azure Linux 4 (arm64)': {
+    architecture: 'arm64'
+    reference: {
+      publisher: 'microsoftazurelinux'
+      offer: 'azurelinux-4'
+      sku: '4-arm64'
+      version: 'latest'
+    }
   }
 }
 
-var resolvedVmSize = osImage == 'Ubuntu 26.04-LTS (arm64)' ? 'Standard_D2ps_v6' : vmSize
+var vmSizeByArchitecture = {
+  x64: vmSize
+  arm64: 'Standard_D2ps_v6'
+}
+var selectedImage = kvImages[osImage]
+var resolvedVmSize = vmSizeByArchitecture[selectedImage.architecture]
 
 // Base network security group rules
 var nsgSecurityRulesBase = [
@@ -420,7 +447,7 @@ resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2026-04-01
           caching: 'ReadWrite'
           deleteOption: 'Delete'
         }
-        imageReference: kvImageReference[osImage]
+        imageReference: selectedImage.reference
       }
       securityProfile: {
         securityType: 'TrustedLaunch'

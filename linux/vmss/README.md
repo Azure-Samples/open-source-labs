@@ -34,14 +34,15 @@ assignment scoped to it.
 
 ## OS images
 
-| `OS_IMAGE` | Publisher | Offer | SKU | Architecture |
-| --- | --- | --- | --- | --- |
-| `Azure Linux 4` (default) | microsoftazurelinux | azurelinux-4 | 4 | x64 |
-| `Ubuntu 26.04-LTS` | Canonical | ubuntu-26_04-lts | server | x64 |
-| `Ubuntu 26.04-LTS (arm64)` | Canonical | ubuntu-26_04-lts | server-arm64 | Arm64 |
-| `Ubuntu 24.04-LTS` | Canonical | ubuntu-24_04-lts | server | x64 |
+| `OS_IMAGE` | Publisher | Offer | SKU | Architecture | VM size |
+| --- | --- | --- | --- | --- | --- |
+| `Azure Linux 4` (default) | microsoftazurelinux | azurelinux-4 | 4 | x64 | Standard_D2s_v6 |
+| `Azure Linux 4 (arm64)` | microsoftazurelinux | azurelinux-4 | 4-arm64 | Arm64 | Standard_D2ps_v6 |
+| `Ubuntu 26.04-LTS` | Canonical | ubuntu-26_04-lts | server | x64 | Standard_D2s_v6 |
+| `Ubuntu 26.04-LTS (arm64)` | Canonical | ubuntu-26_04-lts | server-arm64 | Arm64 | Standard_D2ps_v6 |
+| `Ubuntu 24.04-LTS` | Canonical | ubuntu-24_04-lts | server | x64 | Standard_D2s_v6 |
 
-The Arm64 image automatically uses the Arm64-capable `Standard_D2ps_v6` size.
+The Arm64 images automatically use the Arm64-capable `Standard_D2ps_v6` size.
 The other images default to `Standard_D2s_v6`.
 
 ## Scale set capabilities

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "6559109733498475770"
+      "templateHash": "15518254330014744071"
     }
   },
   "parameters": {
@@ -60,7 +60,8 @@
         "Ubuntu 26.04-LTS",
         "Ubuntu 26.04-LTS (arm64)",
         "Ubuntu 24.04-LTS",
-        "Azure Linux 4"
+        "Azure Linux 4",
+        "Azure Linux 4 (arm64)"
       ],
       "metadata": {
         "description": "The OS image for the VM."
@@ -188,33 +189,59 @@
       "none": null,
       "cloud-init": "[base64(variables('customDataCloudInit'))]"
     },
-    "kvImageReference": {
+    "kvImages": {
       "Ubuntu 26.04-LTS": {
-        "publisher": "Canonical",
-        "offer": "ubuntu-26_04-lts",
-        "sku": "server",
-        "version": "latest"
+        "architecture": "x64",
+        "reference": {
+          "publisher": "Canonical",
+          "offer": "ubuntu-26_04-lts",
+          "sku": "server",
+          "version": "latest"
+        }
       },
       "Ubuntu 26.04-LTS (arm64)": {
-        "publisher": "Canonical",
-        "offer": "ubuntu-26_04-lts",
-        "sku": "server-arm64",
-        "version": "latest"
+        "architecture": "arm64",
+        "reference": {
+          "publisher": "Canonical",
+          "offer": "ubuntu-26_04-lts",
+          "sku": "server-arm64",
+          "version": "latest"
+        }
       },
       "Ubuntu 24.04-LTS": {
-        "publisher": "Canonical",
-        "offer": "ubuntu-24_04-lts",
-        "sku": "server",
-        "version": "latest"
+        "architecture": "x64",
+        "reference": {
+          "publisher": "Canonical",
+          "offer": "ubuntu-24_04-lts",
+          "sku": "server",
+          "version": "latest"
+        }
       },
       "Azure Linux 4": {
-        "publisher": "microsoftazurelinux",
-        "offer": "azurelinux-4",
-        "sku": "4",
-        "version": "latest"
+        "architecture": "x64",
+        "reference": {
+          "publisher": "microsoftazurelinux",
+          "offer": "azurelinux-4",
+          "sku": "4",
+          "version": "latest"
+        }
+      },
+      "Azure Linux 4 (arm64)": {
+        "architecture": "arm64",
+        "reference": {
+          "publisher": "microsoftazurelinux",
+          "offer": "azurelinux-4",
+          "sku": "4-arm64",
+          "version": "latest"
+        }
       }
     },
-    "resolvedVmSize": "[if(equals(parameters('osImage'), 'Ubuntu 26.04-LTS (arm64)'), 'Standard_D2ps_v6', parameters('vmSize'))]",
+    "vmSizeByArchitecture": {
+      "x64": "[parameters('vmSize')]",
+      "arm64": "Standard_D2ps_v6"
+    },
+    "selectedImage": "[variables('kvImages')[parameters('osImage')]]",
+    "resolvedVmSize": "[variables('vmSizeByArchitecture')[variables('selectedImage').architecture]]",
     "nsgSecurityRulesBase": [
       {
         "name": "Port_22",
@@ -502,7 +529,7 @@
               "caching": "ReadWrite",
               "deleteOption": "Delete"
             },
-            "imageReference": "[variables('kvImageReference')[parameters('osImage')]]"
+            "imageReference": "[variables('selectedImage').reference]"
           },
           "securityProfile": {
             "securityType": "TrustedLaunch",
