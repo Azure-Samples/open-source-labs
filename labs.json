@@ -52,14 +52,10 @@
     },
     {
       "path": "cloud-native/aks-kubeflow",
-      "last_validated": "2026-08-13",
-      "validated_by": null,
-      "method": "inferred",
-      "required": "what-if",
-      "blocked": {
-        "reason": "out-of-scope",
-        "note": "excluded from this modernization"
-      }
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+links+go-test+go-vet+what-if",
+      "required": "what-if"
     },
     {
       "path": "cloud-native/containerapps-bicep",
