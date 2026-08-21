@@ -49,8 +49,11 @@ balancer; verify current regional pricing before deployment.
 
 - An Azure subscription, an existing resource group, and an authenticated
   [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
-- Bash, [just](https://just.systems/), `curl`, `tar`, `sha256sum`, and
-  [lychee](https://github.com/lycheeverse/lychee).
+- Bash, [just](https://just.systems/), `curl`, `tar`, `sha256sum`, `openssl`,
+  `jq`, and [lychee](https://github.com/lycheeverse/lychee).
+- Python 3 with the `venv` module. `just e2e` creates `.cache/e2e-venv` and
+  installs the pinned `tests/requirements.txt` into it; nothing is installed
+  system-wide.
 - Bicep CLI `0.46.1`, kubectl `v1.35.x` through `v1.37.x`, Kustomize `v5.8.1`,
   and Go with the `go1.26.6` toolchain available.
 - Permission to preview and deploy resources in the existing resource group.
@@ -70,7 +73,7 @@ Available recipes:
     default
     deploy-aks      # Deploy the AKS cluster at resource-group scope.
     deploy-kubeflow # Install pinned Kubeflow and configure its runtime Dex credentials.
-    e2e             # Check the public HTTPS endpoint with trusted TLS.
+    e2e             # Run the authenticated end-to-end release gate against the live deployment.
     fetch-kubeflow  # Download, verify, and prepare the pinned Kubeflow release.
     group-empty     # Empty the resource group while preserving it and its scoped access.
     password        # Generate a 32-character password and its cost-12 bcrypt hash.
@@ -118,10 +121,24 @@ Azure CLI versions have emitted deployment-output TSV as either one
 tab-delimited record or one value per line. The recipe normalizes both forms
 before validating the three required outputs.
 
-`wait-ready` performs bounded pod readiness checks. `e2e` reads the selected
-hostname from `Certificate/kubeflow-tls` and requires the public endpoint to
-redirect an unauthenticated request to Dex over HTTPS with normal CA
-verification.
+Rendering the release produces one manifest stream, so applying it creates
+application workloads in the same pass that creates the Istio control plane.
+Deployments can therefore be created before `istiod` is serving and before the
+sidecar injector webhook exists, which produces no admission error because at
+that moment there is no webhook to fail. Those pods never receive a sidecar,
+and nothing restarts them. After the apply loop succeeds, `deploy-kubeflow`
+waits for `istiod` and restarts any workload in an injection-enabled namespace
+whose pods have no `istio-proxy` and did not opt out.
+
+`wait-ready` performs bounded pod readiness checks and then asserts that every
+pod in an Istio-injection-enabled namespace either carries an `istio-proxy`
+sidecar or explicitly opts out with `sidecar.istio.io/inject: "false"`. That
+second check exists because readiness cannot detect a missed injection, and a
+pod that missed one is Ready while every route to it through an `ISTIO_MUTUAL`
+DestinationRule returns 503.
+
+`e2e` is the release gate, described below. Pod readiness alone does not
+establish that the lab works.
 
 ## Select the HTTPS endpoint
 
@@ -168,6 +185,67 @@ an interception added later can leave a working deployment unable to renew.
 Only that path bypasses OAuth2 and JWT checks; all other unauthenticated HTTP
 traffic is denied. The certificate contains only `DOMAIN`, never the Azure
 alias target.
+
+## The release gate
+
+`just e2e` is the check that decides whether a deployment is good. It reads the
+selected hostname from `Certificate/kubeflow-tls`, so the endpoint is derived
+from the cluster rather than supplied. Setting `KUBEFLOW_ENDPOINT` is allowed
+only as an assertion that you agree with the certificate: a value that
+disagrees is rejected rather than used, so a stale shell cannot silently test
+another host. `DEX_USERNAME` defaults to `user@example.com`. When `DEX_PASSWORD`
+is unset the recipe prompts for it with terminal echo disabled.
+
+`tests/e2e.py` is derived from upstream `tests/dex_login_test.py`, parameterized
+by those three variables. Upstream runs against a port-forwarded Kind cluster
+over plain HTTP; this gate always verifies TLS against the system CA bundle and
+offers no way to turn that off. It authenticates through oauth2-proxy to Dex,
+requires an `oauth2_proxy` session cookie and a final HTTPS response from the
+same host, then proves the platform with one real user workload: it applies
+`tests/notebook.yaml`, waits up to ten minutes for
+`.status.readyReplicas == 1`, calls the notebooks API and the JupyterLab route
+with the authenticated session, and deletes the Notebook in a `finally` block.
+It prints exactly six markers:
+
+```text
+PASS trusted-tls
+PASS dex-login
+PASS dashboard
+PASS notebook-controller
+PASS notebook-api
+PASS jupyterlab
+```
+
+The password and the session cookies are registered as secrets and scrubbed
+from everything the test writes, on success and on every failure path.
+`validate-static` enforces that: it rejects any bypass of TLS verification, and
+requires that the only unscrubbed `print` calls are the two inside the scrubbing
+helpers themselves.
+
+`tests/notebook.yaml` is upstream's
+`tests/notebook.test.kubeflow-user-example.com.yaml` with a workspace volume
+added. Upstream's fixture declares no `volumeMounts`, and the Jupyter Web App's
+list endpoint subscripts that field instead of treating it as optional, so
+listing the Notebook it creates returns HTTP 500 and the gate cannot reach
+`PASS notebook-api`. A workspace volume is also what the Jupyter interface
+creates for a real notebook, so this exercises a more representative object.
+
+`tests/e2e_selftest.py` covers the scrubbing, endpoint-identity, and marker
+logic offline with the standard library alone, and runs as part of
+`validate-static`. It needs no cluster, so a mistake in the parts that are
+invisible in a passing run is caught before any deployment exists.
+
+After the functional half, `e2e` forces certificate reissuance: it records the
+serial on the wire, deletes `secret/kubeflow-tls`, waits for the Certificate to
+go Ready, and requires a different serial plus a successful request. This is the
+only way to establish that ACME HTTP-01 renewal traverses Istio under a given
+network configuration; rendering the manifests cannot show it. Let's Encrypt
+allows five [duplicate certificates](https://letsencrypt.org/docs/rate-limits/)
+per week, which caps forced reissuance at five runs per week. Set
+`E2E_SKIP_REISSUANCE=1` to run only the functional half.
+
+This gate cannot run unattended in continuous integration when `DOMAIN` is set,
+because that path has a manual DNS step in the middle of the deployment.
 
 ## Cleanup
 

@@ -30,6 +30,12 @@ patches:
       kind: RequestAuthentication
       name: dex-jwt
   - path: patches/require-jwt-authorization.yaml
+  - path: patches/trainer-webhook-netpol.yaml
+    target:
+      group: networking.k8s.io
+      version: v1
+      kind: NetworkPolicy
+      name: trainer-webhook
 
 replacements:
   - source:

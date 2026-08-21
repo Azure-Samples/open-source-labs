@@ -52,9 +52,9 @@
     },
     {
       "path": "cloud-native/aks-kubeflow",
-      "last_validated": "2026-08-17",
-      "validated_by": "cmbox",
-      "method": "arm-diff+links+go-test+go-vet+what-if",
+      "last_validated": "2026-08-21",
+      "validated_by": "Aaron Wislang",
+      "method": "arm-diff+deploy+go-vet+go-test+links",
       "required": "what-if"
     },
     {

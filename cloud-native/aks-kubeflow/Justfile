@@ -105,6 +105,18 @@ validate-static:
     require_equal "ACME authentication exclusions" "2" \
         "$(grep -Fc -- '- /.well-known/acme-challenge/*' "$rendered")"
 
+    # Upstream selects the trainer webhook NetworkPolicy on an Istio-injected
+    # label, so where NetworkPolicy is enforced and no sidecar was injected it
+    # selects nothing and the admission webhook fails closed. See
+    # asw101/_cloud_native_ai#24.
+    if ! grep -A20 '^  name: trainer-webhook$' "$rendered" |
+        grep -Fq 'app.kubernetes.io/name: trainer'; then
+        printf 'trainer-webhook NetworkPolicy does not select a Deployment-owned label.\n' >&2
+        exit 1
+    fi
+    require_equal "Istio-injected trainer selectors" "0" \
+        "$(grep -Fc 'service.istio.io/canonical-name: trainer' "$rendered" || true)"
+
     if grep -Eq '12341234|\$2y\$12\$4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72|@@' \
         "$rendered"; then
         printf 'Rendered manifests contain a default credential or an unresolved placeholder.\n' >&2
@@ -133,6 +145,33 @@ validate-static:
         "$(grep -Ec "^[[:space:]]+value: https://${static_host}/oauth2/callback$" "$rendered")"
     require_equal "Certificate and Gateway hostname count" "2" \
         "$(grep -Ec "^[[:space:]]+- ${static_host}$" "$rendered")"
+
+    require_equal "pinned test dependency" "requests==2.32.5" \
+        "$(grep -Ev '^[[:space:]]*(#|$)' tests/requirements.txt)"
+    python3 -m py_compile tests/e2e.py tests/e2e_selftest.py
+    python3 tests/e2e_selftest.py
+
+    # The gate's whole point is publicly trusted TLS, so it must own no way to
+    # turn verification off, and it must reach stdout only through the
+    # scrubbing helpers that redact the password and session cookies.
+    if grep -Eq 'verify[[:space:]]*=[[:space:]]*False|skip_tls_verify|disable_warnings' \
+        tests/e2e.py; then
+        printf 'tests/e2e.py must not weaken TLS verification.\n' >&2
+        exit 1
+    fi
+    require_equal "unscrubbed print calls in tests/e2e.py" "2" \
+        "$(grep -Ec '^[[:space:]]*print\(' tests/e2e.py)"
+    grep -Fq 'register_secret(dex_password)' tests/e2e.py
+
+    # Upstream's own Notebook fixture has no volumeMounts, and the Jupyter Web
+    # App's list endpoint subscripts that field, so listing it returns 500.
+    # See asw101/_cloud_native_ai#27.
+    grep -Fq 'volumeMounts:' tests/notebook.yaml
+    grep -Fq 'namespace: kubeflow-user-example-com' tests/notebook.yaml
+    grep -Fq 'name: test' tests/notebook.yaml
+    for marker in trusted-tls dex-login dashboard notebook-controller notebook-api jupyterlab; do
+        grep -Fq "\"PASS $marker\"" tests/e2e.py
+    done
 
     lychee --no-progress --max-retries 2 README.md
 
@@ -373,6 +412,52 @@ deploy-kubeflow: fetch-kubeflow
     done
     cd - >/dev/null
 
+    # A single-pass apply creates application workloads alongside the Istio
+    # control plane, so Deployments can be created before istiod's injector
+    # webhook exists. There is no admission failure to notice, because at that
+    # moment there is no webhook to fail. Those pods never get a sidecar, and
+    # anything behind an ISTIO_MUTUAL DestinationRule then returns 503 while
+    # every pod still reports Ready. Restart whatever missed injection, once
+    # the injector is admitting. See asw101/_cloud_native_ai#24.
+    kubectl rollout status deployment/istiod --namespace istio-system --timeout=10m
+
+    restarted=0
+    mapfile -t injected_namespaces < <(
+        kubectl get namespaces --selector=istio-injection=enabled \
+            --output=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
+    )
+    for namespace in "${injected_namespaces[@]}"; do
+        [[ -n "$namespace" ]] || continue
+        mapfile -t owners < <(
+            kubectl get pods --namespace "$namespace" --output=json |
+                jq -r '.items[]
+                    | select((([.spec.initContainers[]?.name]
+                             + [.spec.containers[].name]) | index("istio-proxy")) | not)
+                    | select((.metadata.labels["sidecar.istio.io/inject"] // "") != "false")
+                    | select((.metadata.annotations["sidecar.istio.io/inject"] // "") != "false")
+                    | .metadata.ownerReferences[0]? // empty
+                    | if .kind == "ReplicaSet"
+                      then "deployment/" + (.name | sub("-[a-z0-9]+$"; ""))
+                      elif .kind == "StatefulSet" then "statefulset/" + .name
+                      else empty end' |
+                sort -u
+        )
+        for owner in "${owners[@]}"; do
+            [[ -n "$owner" ]] || continue
+            kubectl rollout restart "$owner" --namespace "$namespace" >&2
+            restarted=$((restarted + 1))
+        done
+    done
+
+    if (( restarted > 0 )); then
+        printf 'Restarted %d workloads that missed sidecar injection.\n' "$restarted" >&2
+        for namespace in "${injected_namespaces[@]}"; do
+            [[ -n "$namespace" ]] || continue
+            kubectl rollout status deployment,statefulset --namespace "$namespace" \
+                --timeout=15m >&2 || true
+        done
+    fi
+
     credentials="$(just --quiet configure-dex)"
     password="${credentials#Password: }"
     password="${password%%$'\n'*}"
@@ -429,30 +514,124 @@ wait-ready:
         --namespace istio-system --timeout=15m
     kubectl rollout status deployment/dex --namespace auth --timeout=5m
     kubectl rollout status deployment/oauth2-proxy --namespace oauth2-proxy --timeout=5m
+    # A pod can be Ready and still have missed sidecar injection, which leaves
+    # every ISTIO_MUTUAL route returning 503 through the ingress. Readiness
+    # cannot detect that, so assert it separately, or this deployment looks
+    # healthy while a third of the platform is unreachable.
+    # See asw101/_cloud_native_ai#24.
+    uninjected=""
+    for namespace in $(
+        kubectl get namespaces --selector=istio-injection=enabled \
+            --output=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
+    ); do
+        uninjected+="$(
+            kubectl get pods --namespace "$namespace" --output=json |
+                jq -r --arg ns "$namespace" '.items[]
+                    | select((([.spec.initContainers[]?.name]
+                             + [.spec.containers[].name]) | index("istio-proxy")) | not)
+                    | select((.metadata.labels["sidecar.istio.io/inject"] // "") != "false")
+                    | select((.metadata.annotations["sidecar.istio.io/inject"] // "") != "false")
+                    | "\($ns)/\(.metadata.name)"'
+        )"
+    done
+    uninjected="$(printf '%s' "$uninjected" | grep -v '^$' || true)"
+    if [[ -n "$uninjected" ]]; then
+        printf 'Ready pods with no Istio sidecar that did not opt out:\n%s\n' \
+            "$uninjected" >&2
+        printf 'Rerun just deploy-kubeflow; it restarts workloads that missed injection.\n' >&2
+        exit 1
+    fi
+
     kubectl get service istio-ingressgateway --namespace istio-system \
         --output=jsonpath='{.status.loadBalancer.ingress[0].ip}'
     printf '\n'
 
-# Check the public HTTPS endpoint with trusted TLS.
+# Run the authenticated end-to-end release gate against the live deployment.
 e2e:
     #!/usr/bin/env bash
     set -euo pipefail
+    notebook_manifest="tests/notebook.yaml"
+    if [[ ! -f "$notebook_manifest" ]]; then
+        printf 'Missing %s.\n' "$notebook_manifest" >&2
+        exit 1
+    fi
+
     host="$(
         kubectl get certificate kubeflow-tls \
             --namespace istio-system \
             --output=jsonpath='{.spec.dnsNames[0]}'
     )"
-    result="$(
-        curl --silent --show-error --output /dev/null \
-            --write-out '%{http_code} %{ssl_verify_result} %{redirect_url}' \
-            "https://${host}/"
-    )"
-    read -r status ssl_verify_result redirect_url <<< "$result"
-    test "$ssl_verify_result" = "0"
-    test "$status" = "302"
-    [[ "$redirect_url" == "https://${host}/dex/auth?"* ]]
-    printf 'HTTPS endpoint: https://%s/ redirects to Dex (%s, TLS verification %s)\n' \
-        "$host" "$status" "$ssl_verify_result"
+    : "${host:?Certificate/kubeflow-tls has no dnsNames[0]}"
+    endpoint="https://${host}"
+
+    # The endpoint is derived from the cluster, never supplied. An explicit
+    # KUBEFLOW_ENDPOINT is honoured only as an assertion that the caller agrees
+    # with the certificate, so a stale shell cannot silently test another host.
+    if [[ -n "${KUBEFLOW_ENDPOINT:-}" && "$KUBEFLOW_ENDPOINT" != "$endpoint" ]]; then
+        printf 'KUBEFLOW_ENDPOINT is %s but Certificate/kubeflow-tls selects %s.\n' \
+            "$KUBEFLOW_ENDPOINT" "$endpoint" >&2
+        exit 1
+    fi
+
+    dex_username="${DEX_USERNAME:-user@example.com}"
+    dex_password="${DEX_PASSWORD:-}"
+    if [[ -z "$dex_password" ]]; then
+        if [[ ! -t 0 ]]; then
+            printf 'DEX_PASSWORD is unset and stdin is not a terminal.\n' >&2
+            exit 1
+        fi
+        read -r -s -p "Dex password for ${dex_username}: " dex_password
+        printf '\n'
+        : "${dex_password:?DEX_PASSWORD must not be empty}"
+    fi
+
+    venv_dir=".cache/e2e-venv"
+    if [[ ! -x "$venv_dir/bin/python" ]]; then
+        python3 -m venv "$venv_dir"
+    fi
+    "$venv_dir/bin/python" -m pip install --quiet --disable-pip-version-check \
+        --requirement tests/requirements.txt
+
+    KUBEFLOW_ENDPOINT="$endpoint" \
+    DEX_USERNAME="$dex_username" \
+    DEX_PASSWORD="$dex_password" \
+    NOTEBOOK_MANIFEST="$notebook_manifest" \
+        "$venv_dir/bin/python" tests/e2e.py
+
+    if [[ -n "${E2E_SKIP_REISSUANCE:-}" ]]; then
+        printf 'Skipping forced reissuance because E2E_SKIP_REISSUANCE is set.\n'
+        exit 0
+    fi
+
+    # Prove ACME HTTP-01 renewal traverses Istio. Static rendering cannot show
+    # this: only a changed serial on the wire does. Let's Encrypt allows five
+    # duplicate certificates per week, so five forced reissuances per week is
+    # the ceiling; set E2E_SKIP_REISSUANCE to run only the functional half.
+    serial_on_the_wire() {
+        openssl s_client -connect "${host}:443" -servername "$host" </dev/null 2>/dev/null |
+            openssl x509 -noout -serial || true
+    }
+    old_serial="$(serial_on_the_wire)"
+    : "${old_serial:?Could not read the serving certificate serial}"
+
+    kubectl delete secret kubeflow-tls --namespace istio-system
+    kubectl wait --for=condition=Ready certificate/kubeflow-tls \
+        --namespace istio-system --timeout=15m
+
+    new_serial=""
+    for attempt in {1..90}; do
+        new_serial="$(serial_on_the_wire)"
+        if [[ -n "$new_serial" && "$new_serial" != "$old_serial" ]]; then
+            break
+        fi
+        sleep 10
+    done
+    if [[ -z "$new_serial" || "$new_serial" == "$old_serial" ]]; then
+        printf 'Certificate serial did not change after forced reissuance.\n' >&2
+        exit 1
+    fi
+    curl --fail --silent --show-error --output /dev/null "https://${host}/"
+    printf 'PASS reissuance (%s -> %s)\n' "$old_serial" "$new_serial"
 
 # Empty the resource group while preserving it and its scoped access.
 group-empty:
