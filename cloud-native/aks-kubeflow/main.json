@@ -1,0 +1,101 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "6148735698112936243"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "clusterName": {
+      "type": "string",
+      "defaultValue": "aks-kubeflow"
+    },
+    "kubernetesVersion": {
+      "type": "string"
+    },
+    "nodeCount": {
+      "type": "int",
+      "defaultValue": 2
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D4s_v6"
+    },
+    "osSKU": {
+      "type": "string",
+      "defaultValue": "AzureLinux"
+    }
+  },
+  "variables": {
+    "dnsLabel": "[format('kubeflow-{0}', uniqueString(resourceGroup().id, parameters('clusterName'), toLower(parameters('location'))))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerService/managedClusters",
+      "apiVersion": "2026-05-01",
+      "name": "[parameters('clusterName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "sku": {
+        "name": "Base",
+        "tier": "Free"
+      },
+      "properties": {
+        "dnsPrefix": "[toLower(format('{0}-{1}', parameters('clusterName'), uniqueString(resourceGroup().id)))]",
+        "enableRBAC": true,
+        "kubernetesVersion": "[parameters('kubernetesVersion')]",
+        "autoUpgradeProfile": {
+          "upgradeChannel": "none",
+          "nodeOSUpgradeChannel": "NodeImage"
+        },
+        "agentPoolProfiles": [
+          {
+            "name": "systempool",
+            "count": "[parameters('nodeCount')]",
+            "vmSize": "[parameters('vmSize')]",
+            "mode": "System",
+            "osType": "Linux",
+            "osSKU": "[parameters('osSKU')]"
+          }
+        ],
+        "networkProfile": {
+          "networkPlugin": "azure",
+          "networkPluginMode": "overlay",
+          "networkPolicy": "azure",
+          "loadBalancerSku": "standard"
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "clusterName": {
+      "type": "string",
+      "value": "[parameters('clusterName')]"
+    },
+    "kubernetesVersion": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters', parameters('clusterName')), '2026-05-01').kubernetesVersion]"
+    },
+    "location": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters', parameters('clusterName')), '2026-05-01', 'full').location]"
+    },
+    "dnsLabel": {
+      "type": "string",
+      "value": "[variables('dnsLabel')]"
+    },
+    "kubeflowHostname": {
+      "type": "string",
+      "value": "[format('{0}.{1}.cloudapp.azure.com', variables('dnsLabel'), toLower(parameters('location')))]"
+    }
+  }
+}

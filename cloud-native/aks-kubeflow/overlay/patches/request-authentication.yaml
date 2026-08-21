@@ -1,0 +1,3 @@
+- op: add
+  path: /spec/jwtRules/0/jwksUri
+  value: http://dex.auth.svc.cluster.local:5556/dex/keys

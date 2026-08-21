@@ -1,3 +1,7 @@
 #cloud-config
+packages:
+  - jq
+  - curl
+
 runcmd:
   - echo 'Hello, World!' > /var/tmp/hello-world.txt

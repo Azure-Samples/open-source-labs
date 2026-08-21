@@ -1,0 +1,26 @@
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+resource_group := env_var_or_default("RESOURCE_GROUP", "")
+export TF_VAR_resource_group_name := resource_group
+
+default:
+    @just --list
+
+# Vet and test both services, and produce a non-mutating Terraform plan.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for service in go-servicebus-sender go-servicebus-receiver; do
+        (cd "$service" && go vet ./... && go test ./...)
+    done
+    terraform -chdir=terraform init -backend=false -input=false -lockfile=readonly
+    terraform -chdir=terraform fmt -check
+    terraform -chdir=terraform validate
+    terraform -chdir=terraform plan -input=false -lock=false -refresh=false
+
+# Build both service images. Needs docker, so it is not part of validate.
+build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for service in go-servicebus-sender go-servicebus-receiver; do
+        docker build --tag "labs/$service:validate" "$service"
+    done

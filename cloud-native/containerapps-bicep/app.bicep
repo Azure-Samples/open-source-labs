@@ -10,11 +10,11 @@ resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-
   name: '${resourceGroup().name}-identity'
 }
 
-resource environment 'Microsoft.App/managedEnvironments@2022-06-01-preview' existing = {
+resource environment 'Microsoft.App/managedEnvironments@2026-01-01' existing = {
   name: env_name
 }
 
-resource app 'Microsoft.App/containerApps@2022-06-01-preview' = {
+resource app 'Microsoft.App/containerApps@2026-01-01' = {
   name: app_name
   location: location
   identity: {

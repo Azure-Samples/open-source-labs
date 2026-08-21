@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.29.47.4906",
-      "templateHash": "14570331344852001599"
+      "version": "0.46.1.21595",
+      "templateHash": "15518254330014744071"
     }
   },
   "parameters": {
@@ -18,18 +18,9 @@
     },
     "vmSize": {
       "type": "string",
-      "defaultValue": "Standard_B2s",
+      "defaultValue": "Standard_D2s_v6",
       "allowedValues": [
-        "Standard_B1ls",
-        "Standard_B1s",
-        "Standard_B2s",
-        "Standard_B1ms",
-        "Standard_B2ms",
-        "Standard_B4ms",
-        "Standard_D2s_v5",
-        "Standard_D4s_v5",
-        "Standard_D2ps_v5",
-        "Standard_D4ps_v5"
+        "Standard_D2s_v6"
       ],
       "metadata": {
         "description": "The Virtual Machine size."
@@ -64,13 +55,13 @@
     },
     "osImage": {
       "type": "string",
-      "defaultValue": "Ubuntu 20.04-LTS",
+      "defaultValue": "Azure Linux 4",
       "allowedValues": [
-        "Ubuntu 20.04-LTS",
-        "Ubuntu 20.04-LTS (arm64)",
-        "mariner-gen2",
-        "mariner-gen1",
-        "mariner-arm"
+        "Ubuntu 26.04-LTS",
+        "Ubuntu 26.04-LTS (arm64)",
+        "Ubuntu 24.04-LTS",
+        "Azure Linux 4",
+        "Azure Linux 4 (arm64)"
       ],
       "metadata": {
         "description": "The OS image for the VM."
@@ -115,7 +106,7 @@
       "type": "string",
       "defaultValue": "none",
       "allowedValues": [
-        "cloud-init-mariner",
+        "cloud-init",
         "none"
       ],
       "metadata": {
@@ -173,14 +164,15 @@
     }
   },
   "variables": {
+    "$fxv#0": "#cloud-config\n\nwrite_files:\n  - path: /home/{0}/env.json\n    owner: {0}:{0}\n    permissions: '0600'\n    encoding: b64\n    content: {1}\n\nruncmd:\n  - [sudo, -H, -u, {0}, sh, -c, 'date --iso-8601=seconds > \"$HOME/cloud-init-complete.txt\"']\n",
     "rand": "[substring(uniqueString(resourceGroup().id), 0, 6)]",
     "keyData": "[if(not(equals(parameters('sshKey'), '')), parameters('sshKey'), 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC3gkRpKwprN00sT7yekr0xO0F+uTllDua02puhu1v0zGu3aENvUsygBHJiTy+flgrO2q3mY9F5/D67+WHDeSpr5s71UtnbzMxTams89qmo+raTm+IqjzdNujaWf0/pbT6JUkQq0fR0BfIvg3/7NTXhlzjmCOP2EpD91LzN6b5jAm/5hXr0V5mcpERo8kk2GWxjKmwmDOV+huH1DIFDpMxT3WzR2qvZp1DZbNSYmKkrite3FHlPGLXA1I3bRQT+iTj8vRGpxOPSiMdPK4RNMEZVXSGQ3OZbSl2FBCbd/tdJ1idKo8/ZCkHxdh9/em28/yfPUK0D164shgiEdIkdOQJv')]",
     "resourceGroupName": "[resourceGroup().name]",
     "bePoolName": "[format('{0}-bepool', parameters('vmssName'))]",
-    "frontEndIPConfigID": "[resourceId('Microsoft.Network/loadBalancers/frontendIpConfigurations', variables('loadBalancerName'), 'LoadBalancerFrontend')]",
+    "frontEndIPConfigID": "[resourceId('Microsoft.Network/loadBalancers/frontendIpConfigurations', variables('loadBalancerName'), 'LoadBalancerFrontEnd')]",
     "ipConfigName": "[format('{0}-ipconfig', parameters('vmssName'))]",
     "loadBalancerName": "[format('{0}-lb', parameters('vmssName'))]",
-    "natPoolName": "[format('{0}-natpool', parameters('vmssName'))]",
+    "natRuleName": "[format('{0}-natrule', parameters('vmssName'))]",
     "natBackendPort": 22,
     "natStartPort": 50000,
     "natEndPort": 50119,
@@ -192,50 +184,64 @@
     "subnetAddressPrefix": "10.1.0.0/24",
     "vnetName": "[if(not(equals(parameters('virtualNetworkName'), '')), parameters('virtualNetworkName'), format('{0}-vnet', variables('resourceGroupName')))]",
     "nsgName": "[format('{0}-nsg', variables('resourceGroupName'))]",
-    "customDataCloudInit": "#cloud-config\n# vim: syntax=yaml\n\nwrite_files:\n- path: /home/azureuser/env.json\n  content: {0}\n  encoding: b64\n\nruncmd:\n- cd /home/azureuser/\n- chown -R azureuser:azureuser /home/azureuser/\n- sudo tdnf install -y moby-engine moby-cli ca-certificates\n- sudo systemctl enable docker.service\n- sudo systemctl daemon-reload\n- sudo systemctl start docker.service\n- sudo -u azureuser echo $(date) > hello.txt\n",
-    "customDataCloudInitFormat": "[format(variables('customDataCloudInit'), base64(string(parameters('env'))))]",
+    "customDataCloudInit": "[format(variables('$fxv#0'), parameters('adminUsername'), base64(string(parameters('env'))))]",
     "kvCustomData": {
       "none": null,
-      "cloud-init-mariner": "[base64(variables('customDataCloudInitFormat'))]"
+      "cloud-init": "[base64(variables('customDataCloudInit'))]"
     },
-    "kvImageReference": {
-      "Ubuntu 20.04-LTS": {
-        "publisher": "canonical",
-        "offer": "0001-com-ubuntu-server-focal",
-        "sku": "20_04-lts-gen2",
-        "version": "latest"
+    "kvImages": {
+      "Ubuntu 26.04-LTS": {
+        "architecture": "x64",
+        "reference": {
+          "publisher": "Canonical",
+          "offer": "ubuntu-26_04-lts",
+          "sku": "server",
+          "version": "latest"
+        }
       },
-      "Ubuntu 18.04-LTS": {
-        "publisher": "Canonical",
-        "offer": "UbuntuServer",
-        "sku": "18.04-LTS",
-        "version": "latest"
+      "Ubuntu 26.04-LTS (arm64)": {
+        "architecture": "arm64",
+        "reference": {
+          "publisher": "Canonical",
+          "offer": "ubuntu-26_04-lts",
+          "sku": "server-arm64",
+          "version": "latest"
+        }
       },
-      "Ubuntu 20.04-LTS (arm64)": {
-        "publisher": "canonical",
-        "offer": "0001-com-ubuntu-server-focal",
-        "sku": "20_04-lts-arm64",
-        "version": "latest"
+      "Ubuntu 24.04-LTS": {
+        "architecture": "x64",
+        "reference": {
+          "publisher": "Canonical",
+          "offer": "ubuntu-24_04-lts",
+          "sku": "server",
+          "version": "latest"
+        }
       },
-      "mariner-gen1": {
-        "publisher": "MicrosoftCBLMariner",
-        "offer": "cbl-mariner",
-        "sku": "cbl-mariner-2",
-        "version": "latest"
+      "Azure Linux 4": {
+        "architecture": "x64",
+        "reference": {
+          "publisher": "microsoftazurelinux",
+          "offer": "azurelinux-4",
+          "sku": "4",
+          "version": "latest"
+        }
       },
-      "mariner-gen2": {
-        "publisher": "MicrosoftCBLMariner",
-        "offer": "cbl-mariner",
-        "sku": "cbl-mariner-2-gen2",
-        "version": "latest"
-      },
-      "mariner-arm": {
-        "publisher": "MicrosoftCBLMariner",
-        "offer": "cbl-mariner",
-        "sku": "cbl-mariner-2-arm64",
-        "version": "latest"
+      "Azure Linux 4 (arm64)": {
+        "architecture": "arm64",
+        "reference": {
+          "publisher": "microsoftazurelinux",
+          "offer": "azurelinux-4",
+          "sku": "4-arm64",
+          "version": "latest"
+        }
       }
     },
+    "vmSizeByArchitecture": {
+      "x64": "[parameters('vmSize')]",
+      "arm64": "Standard_D2ps_v6"
+    },
+    "selectedImage": "[variables('kvImages')[parameters('osImage')]]",
+    "resolvedVmSize": "[variables('vmSizeByArchitecture')[variables('selectedImage').architecture]]",
     "nsgSecurityRulesBase": [
       {
         "name": "Port_22",
@@ -308,13 +314,13 @@
   "resources": [
     {
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
-      "apiVersion": "2018-11-30",
+      "apiVersion": "2024-11-30",
       "name": "[format('{0}-identity', resourceGroup().name)]",
       "location": "[parameters('location')]"
     },
     {
       "type": "Microsoft.Network/publicIPAddresses",
-      "apiVersion": "2020-05-01",
+      "apiVersion": "2026-01-01",
       "name": "[variables('publicIPAddressName')]",
       "location": "[parameters('location')]",
       "sku": {
@@ -329,7 +335,7 @@
     },
     {
       "type": "Microsoft.Network/virtualNetworks",
-      "apiVersion": "2021-05-01",
+      "apiVersion": "2026-01-01",
       "name": "[variables('vnetName')]",
       "location": "[parameters('location')]",
       "properties": {
@@ -366,7 +372,7 @@
     },
     {
       "type": "Microsoft.Network/networkSecurityGroups",
-      "apiVersion": "2018-12-01",
+      "apiVersion": "2026-01-01",
       "name": "[variables('nsgName')]",
       "location": "[parameters('location')]",
       "properties": {
@@ -375,7 +381,7 @@
     },
     {
       "type": "Microsoft.Network/loadBalancers",
-      "apiVersion": "2020-05-01",
+      "apiVersion": "2026-01-01",
       "name": "[variables('loadBalancerName')]",
       "location": "[parameters('location')]",
       "sku": {
@@ -395,20 +401,6 @@
         "backendAddressPools": [
           {
             "name": "[variables('bePoolName')]"
-          }
-        ],
-        "inboundNatPools": [
-          {
-            "name": "[variables('natPoolName')]",
-            "properties": {
-              "frontendIPConfiguration": {
-                "id": "[variables('frontEndIPConfigID')]"
-              },
-              "protocol": "Tcp",
-              "frontendPortRangeStart": "[variables('natStartPort')]",
-              "frontendPortRangeEnd": "[variables('natEndPort')]",
-              "backendPort": "[variables('natBackendPort')]"
-            }
           }
         ],
         "loadBalancingRules": [
@@ -479,8 +471,30 @@
       ]
     },
     {
+      "type": "Microsoft.Network/loadBalancers/inboundNatRules",
+      "apiVersion": "2026-01-01",
+      "name": "[format('{0}/{1}', variables('loadBalancerName'), variables('natRuleName'))]",
+      "properties": {
+        "frontendIPConfiguration": {
+          "id": "[variables('frontEndIPConfigID')]"
+        },
+        "backendAddressPool": {
+          "id": "[format('/subscriptions/{0}/resourceGroups/{1}/providers/Microsoft.Network/loadBalancers/{2}/backendAddressPools/{3}', subscription().subscriptionId, resourceGroup().name, variables('loadBalancerName'), variables('bePoolName'))]"
+        },
+        "protocol": "Tcp",
+        "frontendPortRangeStart": "[variables('natStartPort')]",
+        "frontendPortRangeEnd": "[variables('natEndPort')]",
+        "backendPort": "[variables('natBackendPort')]",
+        "idleTimeoutInMinutes": 15,
+        "enableTcpReset": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/loadBalancers', variables('loadBalancerName'))]"
+      ]
+    },
+    {
       "type": "Microsoft.Compute/virtualMachineScaleSets",
-      "apiVersion": "2019-12-01",
+      "apiVersion": "2026-04-01",
       "name": "[parameters('vmssName')]",
       "location": "[parameters('location')]",
       "identity": {
@@ -490,14 +504,17 @@
         }
       },
       "sku": {
-        "name": "[parameters('vmSize')]",
+        "name": "[variables('resolvedVmSize')]",
         "capacity": "[parameters('instanceCount')]",
         "tier": "[parameters('vmssTier')]"
       },
       "properties": {
-        "overprovision": true,
-        "upgradePolicy": {
-          "mode": "Manual"
+        "orchestrationMode": "Flexible",
+        "platformFaultDomainCount": 1,
+        "automaticRepairsPolicy": {
+          "enabled": true,
+          "gracePeriod": "PT30M",
+          "repairAction": "Replace"
         },
         "virtualMachineProfile": {
           "priority": "[parameters('vmssPriority')]",
@@ -509,9 +526,17 @@
               },
               "diskSizeGB": "[parameters('osDiskSize')]",
               "createOption": "FromImage",
-              "caching": "ReadWrite"
+              "caching": "ReadWrite",
+              "deleteOption": "Delete"
             },
-            "imageReference": "[variables('kvImageReference')[parameters('osImage')]]"
+            "imageReference": "[variables('selectedImage').reference]"
+          },
+          "securityProfile": {
+            "securityType": "TrustedLaunch",
+            "uefiSettings": {
+              "secureBootEnabled": true,
+              "vTpmEnabled": true
+            }
           },
           "osProfile": {
             "computerNamePrefix": "[parameters('vmssName')]",
@@ -535,6 +560,7 @@
                 "name": "[variables('nicName')]",
                 "properties": {
                   "primary": true,
+                  "deleteOption": "Delete",
                   "ipConfigurations": [
                     {
                       "name": "[variables('ipConfigName')]",
@@ -546,15 +572,27 @@
                           {
                             "id": "[format('/subscriptions/{0}/resourceGroups/{1}/providers/Microsoft.Network/loadBalancers/{2}/backendAddressPools/{3}', subscription().subscriptionId, resourceGroup().name, variables('loadBalancerName'), variables('bePoolName'))]"
                           }
-                        ],
-                        "loadBalancerInboundNatPools": [
-                          {
-                            "id": "[format('/subscriptions/{0}/resourceGroups/{1}/providers/Microsoft.Network/loadBalancers/{2}/inboundNatPools/{3}', subscription().subscriptionId, resourceGroup().name, variables('loadBalancerName'), variables('natPoolName'))]"
-                          }
                         ]
                       }
                     }
                   ]
+                }
+              }
+            ]
+          },
+          "extensionProfile": {
+            "extensions": [
+              {
+                "name": "ApplicationHealthLinux",
+                "properties": {
+                  "publisher": "Microsoft.ManagedServices",
+                  "type": "ApplicationHealthLinux",
+                  "typeHandlerVersion": "2.0",
+                  "autoUpgradeMinorVersion": true,
+                  "settings": {
+                    "protocol": "tcp",
+                    "port": 22
+                  }
                 }
               }
             ]
@@ -575,7 +613,7 @@
     },
     "fqdn": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName')), '2020-05-01').dnsSettings.fqdn]"
+      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName')), '2026-01-01').dnsSettings.fqdn]"
     }
   }
 }

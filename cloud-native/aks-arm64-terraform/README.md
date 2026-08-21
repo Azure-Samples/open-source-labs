@@ -1,13 +1,15 @@
 # Azure Kubernetes Service with ARM64 node pools and Terraform
 
-This directory holds Terraform configuration files for deploying an AKS cluster with ARM64 node pools. It is an alternative to [deploying with Azure Bicep](../aks-arm64#deploy-azure-resources-using-azure-bicep)
+This directory holds Terraform configuration files for deploying an AKS cluster with ARM64 node pools. It is an alternative to [deploying with Azure Bicep](../aks-arm/#deploy-via-azure-cli).
 
 ## Requirements
 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
-- The [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli)
-- Bash shell (e.g. macOS, Linux, [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/windows/wsl/about), [Multipass](https://multipass.run/), [Azure Cloud Shell](https://docs.microsoft.com/azure/cloud-shell/quickstart), [GitHub Codespaces](https://github.com/features/codespaces), etc)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - The [Terraform CLI](https://www.terraform.io/downloads)
+- The `ARM_SUBSCRIPTION_ID` environment variable set to the ID of the selected Azure subscription
 
 ## Deploy Azure Resources using Terraform
 
@@ -23,7 +25,29 @@ Optionally set the correct subscription if you have more than one.
 az account set -s '<YOUR_SUBSCRIPTION_NAME>'
 ```
 
-Change to the `cloud-native/containerapps-terraform/terraform` subdirectory of this repo and run the Terraform deployment script.
+Export the selected subscription ID for Terraform.
+
+```bash
+export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+```
+
+The `resource_group_name` variable controls where resources are deployed. Leave it empty (the default) to create a resource group in `location`:
+
+```bash
+unset RESOURCE_GROUP
+just validate
+```
+
+To deploy into an existing resource group, set `RESOURCE_GROUP`; the Justfile exports it as `TF_VAR_resource_group_name`, and Terraform uses the existing group's location:
+
+```bash
+export RESOURCE_GROUP='<EXISTING_RESOURCE_GROUP_NAME>'
+just validate
+```
+
+When running Terraform directly instead of using Just, set `TF_VAR_resource_group_name` to the existing resource group name.
+
+Change to the `cloud-native/aks-arm64-terraform` subdirectory of this repo and run the Terraform deployment script.
 
 ```bash
 cd cloud-native/aks-arm64-terraform
@@ -41,10 +65,21 @@ Once you've completed the deployment of Azure infrastructure, run the following 
 export name=$(terraform output -raw random_pet_name)
 ```
 
-You can pull down the `kube_config` file with the following command.
+You can pull down the `kube_config` file with the following command. The cluster
+is always named `aks-${name}`, but the resource group depends on which path you
+took above.
+
+If you left `resource_group_name` empty and Terraform created the group, it is
+named `rg-${name}`:
 
 ```bash
 az aks get-credentials --resource-group "rg-${name}" --name "aks-${name}"
+```
+
+If you deployed into an existing resource group, use that group's name instead:
+
+```bash
+az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "aks-${name}"
 ```
 
 Validate access to your AKS cluster using `kubectl`.
@@ -55,7 +90,7 @@ kubectl get nodes -o wide
 
 ## Next steps
 
-Continue on to the [Deploying `ARM64` workloads to Kubernetes](../aks-arm64#deploying-arm64-workloads-to-kubernetes) portion of the [Azure Kubernetes Service with ARM64 node pools](../aks-arm64/) lab to deploy workloads to your cluster.
+Continue with the [Azure Cobalt Arm-based VM Bicep lab](../aks-arm/) to compare its raw Bicep deployment.
 
 ## Clean up resources
 

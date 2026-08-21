@@ -1,0 +1,318 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "2963800670711300816"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for the AKS cluster."
+      }
+    },
+    "clusterName": {
+      "type": "string",
+      "defaultValue": "aks-https-routing",
+      "metadata": {
+        "description": "Name of the AKS cluster."
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D2s_v5",
+      "metadata": {
+        "description": "VM size for the single-node learning cluster."
+      }
+    },
+    "domainName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Public application hostname. Set without dnsZoneName to use manual HTTP-01, or leave empty to use an Azure-provided DNS label."
+      }
+    },
+    "dnsZoneName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Existing public Azure DNS zone. Leave empty to use HTTP-01 when domainName is set."
+      }
+    },
+    "dnsLabel": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional Azure-managed public IP DNS label. With no domainName, leave empty to derive a stable unique label."
+      }
+    },
+    "selfSigned": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Use a self-signed certificate instead of the default Azure DNS-label and Let's Encrypt path. An explicit dnsLabel may still annotate the public IP."
+      }
+    },
+    "dnsZoneResourceGroup": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().name]",
+      "metadata": {
+        "description": "Resource group containing the existing public Azure DNS zone."
+      }
+    },
+    "acmeEmail": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional email address for the Let's Encrypt ACME account."
+      }
+    }
+  },
+  "variables": {
+    "useLetsEncrypt": "[and(not(equals(parameters('domainName'), '')), not(equals(parameters('dnsZoneName'), '')))]",
+    "useSelfSigned": "[and(equals(parameters('domainName'), ''), parameters('selfSigned'))]",
+    "useAzureProvidedHostname": "[and(equals(parameters('domainName'), ''), not(variables('useSelfSigned')))]",
+    "useDnsLabel": "[or(not(equals(parameters('dnsLabel'), '')), variables('useAzureProvidedHostname'))]",
+    "useHttp01": "[or(and(not(equals(parameters('domainName'), '')), equals(parameters('dnsZoneName'), '')), variables('useAzureProvidedHostname'))]",
+    "suffix": "[substring(uniqueString(resourceGroup().id), 0, 6)]",
+    "generatedDnsLabel": "[format('aks-https-{0}', uniqueString(resourceGroup().id, parameters('clusterName'), toLower(parameters('location'))))]",
+    "effectiveDnsLabel": "[if(not(equals(parameters('dnsLabel'), '')), parameters('dnsLabel'), variables('generatedDnsLabel'))]",
+    "dnsIdentityName": "[format('cert-manager-dns-{0}', variables('suffix'))]",
+    "dnsZoneContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'befefa01-2a29-4197-83a8-272ff33ce314')]",
+    "readerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerService/managedClusters",
+      "apiVersion": "2026-01-01",
+      "name": "[parameters('clusterName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "sku": {
+        "name": "Base",
+        "tier": "Free"
+      },
+      "properties": {
+        "dnsPrefix": "[format('{0}-{1}', parameters('clusterName'), variables('suffix'))]",
+        "enableRBAC": true,
+        "oidcIssuerProfile": {
+          "enabled": true
+        },
+        "securityProfile": {
+          "workloadIdentity": {
+            "enabled": true
+          }
+        },
+        "agentPoolProfiles": [
+          {
+            "name": "systempool",
+            "count": 1,
+            "vmSize": "[parameters('vmSize')]",
+            "mode": "System",
+            "osType": "Linux",
+            "osSKU": "AzureLinux3"
+          }
+        ],
+        "networkProfile": {
+          "networkPlugin": "azure",
+          "networkPluginMode": "overlay",
+          "networkPolicy": "azure",
+          "loadBalancerSku": "standard"
+        }
+      }
+    },
+    {
+      "condition": "[variables('useLetsEncrypt')]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2024-11-30",
+      "name": "[variables('dnsIdentityName')]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "condition": "[variables('useLetsEncrypt')]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}/{1}', variables('dnsIdentityName'), 'cert-manager')]",
+      "properties": {
+        "audiences": [
+          "api://AzureADTokenExchange"
+        ],
+        "issuer": "[reference(resourceId('Microsoft.ContainerService/managedClusters', parameters('clusterName')), '2026-01-01').oidcIssuerProfile.issuerURL]",
+        "subject": "system:serviceaccount:cert-manager:cert-manager"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerService/managedClusters', parameters('clusterName'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dnsIdentityName'))]"
+      ]
+    },
+    {
+      "condition": "[variables('useLetsEncrypt')]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}/{1}', variables('dnsIdentityName'), 'external-dns')]",
+      "properties": {
+        "audiences": [
+          "api://AzureADTokenExchange"
+        ],
+        "issuer": "[reference(resourceId('Microsoft.ContainerService/managedClusters', parameters('clusterName')), '2026-01-01').oidcIssuerProfile.issuerURL]",
+        "subject": "system:serviceaccount:external-dns:external-dns"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerService/managedClusters', parameters('clusterName'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dnsIdentityName'))]"
+      ]
+    },
+    {
+      "condition": "[variables('useLetsEncrypt')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "dns-rbac",
+      "resourceGroup": "[parameters('dnsZoneResourceGroup')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "dnsZoneContributorRoleId": {
+            "value": "[variables('dnsZoneContributorRoleId')]"
+          },
+          "dnsZoneName": {
+            "value": "[parameters('dnsZoneName')]"
+          },
+          "identityPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dnsIdentityName')), '2024-11-30').principalId]"
+          },
+          "identityResourceId": {
+            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dnsIdentityName'))]"
+          },
+          "readerRoleId": {
+            "value": "[variables('readerRoleId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.46.1.21595",
+              "templateHash": "2611688906169927998"
+            }
+          },
+          "parameters": {
+            "dnsZoneName": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing public Azure DNS zone."
+              }
+            },
+            "identityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the workload identity."
+              }
+            },
+            "identityResourceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the workload identity."
+              }
+            },
+            "dnsZoneContributorRoleId": {
+              "type": "string",
+              "metadata": {
+                "description": "DNS Zone Contributor role definition resource ID."
+              }
+            },
+            "readerRoleId": {
+              "type": "string",
+              "metadata": {
+                "description": "Reader role definition resource ID."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Network/dnsZones', parameters('dnsZoneName'))]",
+              "name": "[guid(resourceId('Microsoft.Network/dnsZones', parameters('dnsZoneName')), parameters('identityResourceId'), parameters('dnsZoneContributorRoleId'))]",
+              "properties": {
+                "principalId": "[parameters('identityPrincipalId')]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[parameters('dnsZoneContributorRoleId')]"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(resourceGroup().id, parameters('identityResourceId'), parameters('readerRoleId'))]",
+              "properties": {
+                "principalId": "[parameters('identityPrincipalId')]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[parameters('readerRoleId')]"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dnsIdentityName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "clusterName": {
+      "type": "string",
+      "value": "[parameters('clusterName')]"
+    },
+    "domainName": {
+      "type": "string",
+      "value": "[if(not(equals(parameters('domainName'), '')), parameters('domainName'), if(variables('useAzureProvidedHostname'), format('{0}.{1}.cloudapp.azure.com', variables('effectiveDnsLabel'), toLower(parameters('location'))), 'aks-https.local'))]"
+    },
+    "dnsZoneName": {
+      "type": "string",
+      "value": "[parameters('dnsZoneName')]"
+    },
+    "dnsLabel": {
+      "type": "string",
+      "value": "[if(variables('useDnsLabel'), variables('effectiveDnsLabel'), '')]"
+    },
+    "clusterLocation": {
+      "type": "string",
+      "value": "[toLower(parameters('location'))]"
+    },
+    "dnsZoneResourceGroup": {
+      "type": "string",
+      "value": "[parameters('dnsZoneResourceGroup')]"
+    },
+    "subscriptionId": {
+      "type": "string",
+      "value": "[subscription().subscriptionId]"
+    },
+    "tenantId": {
+      "type": "string",
+      "value": "[tenant().tenantId]"
+    },
+    "dnsIdentityClientId": {
+      "type": "string",
+      "value": "[if(variables('useLetsEncrypt'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dnsIdentityName')), '2024-11-30').clientId, '')]"
+    },
+    "acmeEmail": {
+      "type": "string",
+      "value": "[parameters('acmeEmail')]"
+    },
+    "certificateMode": {
+      "type": "string",
+      "value": "[if(variables('useLetsEncrypt'), 'letsencrypt', if(variables('useAzureProvidedHostname'), 'letsencrypt-azure-http01', if(variables('useHttp01'), 'letsencrypt-http01', 'selfsigned')))]"
+    }
+  }
+}

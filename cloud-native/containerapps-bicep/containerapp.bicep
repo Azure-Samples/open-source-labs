@@ -23,7 +23,7 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2019-05-01' =
 }
 
 var roleAssignmentAcrPull = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
-resource roleAssignmentAcr 'Microsoft.Authorization/roleAssignments@2020-08-01-preview' = {
+resource roleAssignmentAcr 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(containerRegistry.id, roleAssignmentAcrPull)
   scope: containerRegistry
   properties: {
@@ -34,7 +34,7 @@ resource roleAssignmentAcr 'Microsoft.Authorization/roleAssignments@2020-08-01-p
 
 var logAnalyticsWorkspaceName = '${env_name}-logs'
 
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2020-03-01-preview' = {
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' = {
   name: logAnalyticsWorkspaceName
   location: location
   properties: any({
@@ -48,7 +48,7 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2020-03
   })
 }
 
-resource environment 'Microsoft.App/managedEnvironments@2022-06-01-preview' = {
+resource environment 'Microsoft.App/managedEnvironments@2026-01-01' = {
   name: env_name
   location: location
   properties: {
@@ -62,7 +62,7 @@ resource environment 'Microsoft.App/managedEnvironments@2022-06-01-preview' = {
   }
 }
 
-resource app 'Microsoft.App/containerApps@2022-06-01-preview' = {
+resource app 'Microsoft.App/containerApps@2026-01-01' = {
   name: 'my-container-app'
   location: location
   identity: {

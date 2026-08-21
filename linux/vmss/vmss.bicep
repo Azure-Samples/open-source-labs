@@ -3,18 +3,9 @@ param vmssName string = 'vmss1'
 
 @description('The Virtual Machine size.')
 @allowed([
-  'Standard_B1ls'
-  'Standard_B1s'
-  'Standard_B2s'
-  'Standard_B1ms'
-  'Standard_B2ms'
-  'Standard_B4ms'
-  'Standard_D2s_v5'
-  'Standard_D4s_v5'
-  'Standard_D2ps_v5'
-  'Standard_D4ps_v5'
+  'Standard_D2s_v6'
 ])
-param vmSize string = 'Standard_B2s'
+param vmSize string = 'Standard_D2s_v6'
 
 @description('The Storage Account Type for OS and Data disks.')
 @allowed([
@@ -37,14 +28,13 @@ param osDiskSize int = 256
 
 @description('The OS image for the VM.')
 @allowed([
-  //'Ubuntu 22.04-LTS'
-  'Ubuntu 20.04-LTS'
-  'Ubuntu 20.04-LTS (arm64)'
-  'mariner-gen2'
-  'mariner-gen1'
-  'mariner-arm'
+  'Ubuntu 26.04-LTS'
+  'Ubuntu 26.04-LTS (arm64)'
+  'Ubuntu 24.04-LTS'
+  'Azure Linux 4'
+  'Azure Linux 4 (arm64)'
 ])
-param osImage string = 'Ubuntu 20.04-LTS'
+param osImage string = 'Azure Linux 4'
 
 @description('Location for all resources.')
 param location string = resourceGroup().location
@@ -64,7 +54,7 @@ param sshKey string = ''
 
 @description('Deploy with cloud-init.')
 @allowed([
-  'cloud-init-mariner'
+  'cloud-init'
   'none'
 ])
 param customData string = 'none'
@@ -104,10 +94,10 @@ var rand = substring(uniqueString(resourceGroup().id), 0, 6)
 var keyData = sshKey != '' ? sshKey : 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC3gkRpKwprN00sT7yekr0xO0F+uTllDua02puhu1v0zGu3aENvUsygBHJiTy+flgrO2q3mY9F5/D67+WHDeSpr5s71UtnbzMxTams89qmo+raTm+IqjzdNujaWf0/pbT6JUkQq0fR0BfIvg3/7NTXhlzjmCOP2EpD91LzN6b5jAm/5hXr0V5mcpERo8kk2GWxjKmwmDOV+huH1DIFDpMxT3WzR2qvZp1DZbNSYmKkrite3FHlPGLXA1I3bRQT+iTj8vRGpxOPSiMdPK4RNMEZVXSGQ3OZbSl2FBCbd/tdJ1idKo8/ZCkHxdh9/em28/yfPUK0D164shgiEdIkdOQJv'
 var resourceGroupName = resourceGroup().name
 var bePoolName = '${vmssName}-bepool'
-var frontEndIPConfigID = resourceId('Microsoft.Network/loadBalancers/frontendIpConfigurations', loadBalancerName, 'LoadBalancerFrontend')
+var frontEndIPConfigID = resourceId('Microsoft.Network/loadBalancers/frontendIpConfigurations', loadBalancerName, 'LoadBalancerFrontEnd')
 var ipConfigName = '${vmssName}-ipconfig'
 var loadBalancerName = '${vmssName}-lb'
-var natPoolName = '${vmssName}-natpool'
+var natRuleName = '${vmssName}-natrule'
 var natBackendPort = 22
 var natStartPort = 50000
 var natEndPort = 50119
@@ -120,70 +110,67 @@ var subnetAddressPrefix = '10.1.0.0/24'
 var vnetName = virtualNetworkName != '' ? virtualNetworkName : '${resourceGroupName}-vnet'
 var nsgName = '${resourceGroupName}-nsg'
 
-var customDataCloudInit = '''
-#cloud-config
-# vim: syntax=yaml
-
-write_files:
-- path: /home/azureuser/env.json
-  content: {0}
-  encoding: b64
-
-runcmd:
-- cd /home/azureuser/
-- chown -R azureuser:azureuser /home/azureuser/
-- sudo tdnf install -y moby-engine moby-cli ca-certificates
-- sudo systemctl enable docker.service
-- sudo systemctl daemon-reload
-- sudo systemctl start docker.service
-- sudo -u azureuser echo $(date) > hello.txt
-'''
-
-var customDataCloudInitFormat = format(customDataCloudInit, base64(string(env)))
+var customDataCloudInit = format(loadTextContent('cloud-init/cloud-init.yaml'), adminUsername, base64(string(env)))
 
 var kvCustomData = {
   none: null
-  'cloud-init-mariner': base64(customDataCloudInitFormat)
+  'cloud-init': base64(customDataCloudInit)
 }
 
-var kvImageReference = {
-  'Ubuntu 20.04-LTS': {
-    publisher: 'canonical'
-    offer: '0001-com-ubuntu-server-focal'
-    sku: '20_04-lts-gen2'
-    version: 'latest'
+var kvImages = {
+  'Ubuntu 26.04-LTS': {
+    architecture: 'x64'
+    reference: {
+      publisher: 'Canonical'
+      offer: 'ubuntu-26_04-lts'
+      sku: 'server'
+      version: 'latest'
+    }
   }
-  'Ubuntu 18.04-LTS': {
-    publisher: 'Canonical'
-    offer: 'UbuntuServer'
-    sku: '18.04-LTS'
-    version: 'latest'
+  'Ubuntu 26.04-LTS (arm64)': {
+    architecture: 'arm64'
+    reference: {
+      publisher: 'Canonical'
+      offer: 'ubuntu-26_04-lts'
+      sku: 'server-arm64'
+      version: 'latest'
+    }
   }
-  'Ubuntu 20.04-LTS (arm64)': {
-    publisher: 'canonical'
-    offer: '0001-com-ubuntu-server-focal'
-    sku: '20_04-lts-arm64'
-    version: 'latest'
+  'Ubuntu 24.04-LTS': {
+    architecture: 'x64'
+    reference: {
+      publisher: 'Canonical'
+      offer: 'ubuntu-24_04-lts'
+      sku: 'server'
+      version: 'latest'
+    }
   }
-  'mariner-gen1': {
-    publisher: 'MicrosoftCBLMariner'
-    offer: 'cbl-mariner'
-    sku: 'cbl-mariner-2'
-    version: 'latest'
+  'Azure Linux 4': {
+    architecture: 'x64'
+    reference: {
+      publisher: 'microsoftazurelinux'
+      offer: 'azurelinux-4'
+      sku: '4'
+      version: 'latest'
+    }
   }
-  'mariner-gen2': {
-    publisher: 'MicrosoftCBLMariner'
-    offer: 'cbl-mariner'
-    sku: 'cbl-mariner-2-gen2'
-    version: 'latest'
-  }
-  'mariner-arm': {
-    publisher: 'MicrosoftCBLMariner'
-    offer: 'cbl-mariner'
-    sku: 'cbl-mariner-2-arm64'
-    version: 'latest'
+  'Azure Linux 4 (arm64)': {
+    architecture: 'arm64'
+    reference: {
+      publisher: 'microsoftazurelinux'
+      offer: 'azurelinux-4'
+      sku: '4-arm64'
+      version: 'latest'
+    }
   }
 }
+
+var vmSizeByArchitecture = {
+  x64: vmSize
+  arm64: 'Standard_D2ps_v6'
+}
+var selectedImage = kvImages[osImage]
+var resolvedVmSize = vmSizeByArchitecture[selectedImage.architecture]
 
 // Base network security group rules
 var nsgSecurityRulesBase = [
@@ -256,12 +243,12 @@ var nsgSecurityRulesBase = [
 
 var nsgSecurityRules = nsgSecurityRulesBase
 
-resource identityName 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
+resource identityName 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   name: '${resourceGroup().name}-identity'
   location: location
 }
 
-resource publicIP 'Microsoft.Network/publicIPAddresses@2020-05-01' = {
+resource publicIP 'Microsoft.Network/publicIPAddresses@2026-01-01' = {
   name: publicIPAddressName
   location: location
   sku: {
@@ -275,7 +262,7 @@ resource publicIP 'Microsoft.Network/publicIPAddresses@2020-05-01' = {
   }
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
+resource vnet 'Microsoft.Network/virtualNetworks@2026-01-01' = {
   name: vnetName
   location: location
   properties: {
@@ -308,7 +295,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   }
 }
 
-resource nsg 'Microsoft.Network/networkSecurityGroups@2018-12-01' = {
+resource nsg 'Microsoft.Network/networkSecurityGroups@2026-01-01' = {
   name: nsgName
   location: location
   properties: {
@@ -316,7 +303,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2018-12-01' = {
   }
 }
 
-resource loadBalancer 'Microsoft.Network/loadBalancers@2020-05-01' = {
+resource loadBalancer 'Microsoft.Network/loadBalancers@2026-01-01' = {
   name: loadBalancerName
   location: location
   sku: {
@@ -336,20 +323,6 @@ resource loadBalancer 'Microsoft.Network/loadBalancers@2020-05-01' = {
     backendAddressPools: [
       {
         name: bePoolName
-      }
-    ]
-    inboundNatPools: [
-      {
-        name: natPoolName
-        properties: {
-          frontendIPConfiguration: {
-            id: frontEndIPConfigID
-          }
-          protocol: 'Tcp'
-          frontendPortRangeStart: natStartPort
-          frontendPortRangeEnd: natEndPort
-          backendPort: natBackendPort
-        }
       }
     ]
     loadBalancingRules: [
@@ -419,7 +392,27 @@ resource loadBalancer 'Microsoft.Network/loadBalancers@2020-05-01' = {
   }
 }
 
-resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2019-12-01' = {
+resource inboundNatRule 'Microsoft.Network/loadBalancers/inboundNatRules@2026-01-01' = {
+  parent: loadBalancer
+  name: natRuleName
+  properties: {
+    frontendIPConfiguration: {
+      id: frontEndIPConfigID
+    }
+    backendAddressPool: {
+      #disable-next-line use-resource-id-functions
+      id: '/subscriptions/${subscription().subscriptionId}/resourceGroups/${resourceGroup().name}/providers/Microsoft.Network/loadBalancers/${loadBalancerName}/backendAddressPools/${bePoolName}'
+    }
+    protocol: 'Tcp'
+    frontendPortRangeStart: natStartPort
+    frontendPortRangeEnd: natEndPort
+    backendPort: natBackendPort
+    idleTimeoutInMinutes: 15
+    enableTcpReset: true
+  }
+}
+
+resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2026-04-01' = {
   name: vmssName
   location: location
   identity: {
@@ -429,14 +422,17 @@ resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2019-12-01
     }
   }
   sku: {
-    name: vmSize
+    name: resolvedVmSize
     capacity: instanceCount
     tier: vmssTier
   }
   properties: {
-    overprovision: true
-    upgradePolicy: {
-      mode: 'Manual'
+    orchestrationMode: 'Flexible'
+    platformFaultDomainCount: 1
+    automaticRepairsPolicy: {
+      enabled: true
+      gracePeriod: 'PT30M'
+      repairAction: 'Replace'
     }
     virtualMachineProfile: {
       priority: vmssPriority
@@ -449,8 +445,16 @@ resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2019-12-01
           diskSizeGB: osDiskSize
           createOption: 'FromImage'
           caching: 'ReadWrite'
+          deleteOption: 'Delete'
         }
-        imageReference: kvImageReference[osImage]
+        imageReference: selectedImage.reference
+      }
+      securityProfile: {
+        securityType: 'TrustedLaunch'
+        uefiSettings: {
+          secureBootEnabled: true
+          vTpmEnabled: true
+        }
       }
       osProfile: {
         computerNamePrefix: vmssName
@@ -474,6 +478,7 @@ resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2019-12-01
             name: nicName
             properties: {
               primary: true
+              deleteOption: 'Delete'
               ipConfigurations: [
                 {
                   name: ipConfigName
@@ -488,15 +493,26 @@ resource vmssName_resource 'Microsoft.Compute/virtualMachineScaleSets@2019-12-01
                         id: '/subscriptions/${subscription().subscriptionId}/resourceGroups/${resourceGroup().name}/providers/Microsoft.Network/loadBalancers/${loadBalancerName}/backendAddressPools/${bePoolName}'
                       }
                     ]
-                    loadBalancerInboundNatPools: [
-                      {
-                        #disable-next-line use-resource-id-functions
-                        id: '/subscriptions/${subscription().subscriptionId}/resourceGroups/${resourceGroup().name}/providers/Microsoft.Network/loadBalancers/${loadBalancerName}/inboundNatPools/${natPoolName}'
-                      }
-                    ]
                   }
                 }
               ]
+            }
+          }
+        ]
+      }
+      extensionProfile: {
+        extensions: [
+          {
+            name: 'ApplicationHealthLinux'
+            properties: {
+              publisher: 'Microsoft.ManagedServices'
+              type: 'ApplicationHealthLinux'
+              typeHandlerVersion: '2.0'
+              autoUpgradeMinorVersion: true
+              settings: {
+                protocol: 'tcp'
+                port: 22
+              }
             }
           }
         ]

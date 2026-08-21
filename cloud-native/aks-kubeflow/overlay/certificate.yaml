@@ -1,0 +1,16 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kubeflow-tls
+  namespace: istio-system
+spec:
+  secretName: kubeflow-tls
+  dnsNames:
+    - kubeflow-static-validation.eastus.cloudapp.azure.com
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer

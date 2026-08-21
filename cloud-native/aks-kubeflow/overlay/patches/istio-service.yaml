@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: istio-ingressgateway
+  namespace: istio-system
+  annotations:
+    service.beta.kubernetes.io/azure-dns-label-name: kubeflow-static-validation
+spec:
+  type: LoadBalancer

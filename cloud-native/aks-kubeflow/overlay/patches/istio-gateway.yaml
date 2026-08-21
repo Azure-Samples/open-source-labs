@@ -1,0 +1,16 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: kubeflow-gateway
+  namespace: kubeflow
+spec:
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        - kubeflow-static-validation.eastus.cloudapp.azure.com
+      tls:
+        mode: SIMPLE
+        credentialName: kubeflow-tls

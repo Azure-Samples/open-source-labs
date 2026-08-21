@@ -1,0 +1,17 @@
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+resource_group := env_var_or_default("RESOURCE_GROUP", "")
+export TF_VAR_resource_group_name := resource_group
+
+default:
+    @just --list
+
+# Plan the workstation.
+validate:
+    terraform -chdir=workstation init -backend=false -input=false -lockfile=readonly
+    terraform -chdir=workstation fmt -check
+    terraform -chdir=workstation validate
+    terraform -chdir=workstation plan -input=false -lock=false -refresh=false
+
+# Build the pinned KitOps image. Needs docker, so it is not part of validate.
+build:
+    docker build --tag labs/kaito-kitops:validate .

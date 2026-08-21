@@ -4,6 +4,12 @@ variable "location" {
   default     = "eastus"
 }
 
+variable "resource_group_name" {
+  type        = string
+  description = "Deploy into this existing resource group; leave empty to create one."
+  default     = ""
+}
+
 variable "tags" {
   type        = map(any)
   description = "Key/value pairs to store as resource tags"

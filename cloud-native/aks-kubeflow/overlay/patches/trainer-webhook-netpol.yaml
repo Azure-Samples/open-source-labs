@@ -1,0 +1,18 @@
+# Upstream 26.03.1 selects this NetworkPolicy on
+# `service.istio.io/canonical-name: trainer`, a label the Istio sidecar
+# injector contributes rather than one the Deployment sets. Where NetworkPolicy
+# is enforced and no sidecar was injected, the policy selects nothing, the
+# namespace default-deny takes over, and the API server cannot reach the
+# trainer admission webhook on port 9443. Its failurePolicy is Fail, so every
+# ClusterTrainingRuntime apply is then rejected with a 504.
+#
+# Selecting a label the Deployment itself owns is what the sibling
+# jobset-webhook policy in the same upstream directory already does, and it is
+# what canonical-name would have defaulted to. A strategic merge would union
+# the two labels and still select nothing, so this replaces the map outright.
+#
+# Remove once upstream fixes the selector. See asw101/_cloud_native_ai#24.
+- op: replace
+  path: /spec/podSelector/matchLabels
+  value:
+    app.kubernetes.io/name: trainer

@@ -1,0 +1,424 @@
+existing_resource_group := env_var_or_default("RESOURCE_GROUP", "")
+resource_group := env_var_or_default("RESOURCE_GROUP", `date +%y%m` + "00-postgres")
+location := env_var_or_default("LOCATION", "eastus")
+vm_name := env_var_or_default("VM_NAME", "vm1")
+ts_authkey := env_var_or_default("TS_AUTHKEY", "")
+environment := env_var_or_default("ENV", "{}")
+ip_allow := env_var_or_default("IP_ALLOW", "")
+ssh_key := env_var_or_default("SSH_KEY", "")
+sudo_user := env_var_or_default("SUDO_USER", "")
+pg_host := env_var_or_default("PGHOST", "")
+pg_password := env_var_or_default("PGPASSWORD", "")
+pg_port := env_var_or_default("PGPORT", "")
+pg_database := env_var_or_default("PGDATABASE", "")
+pg_user := env_var_or_default("PGUSER", "")
+
+export RESOURCE_GROUP := resource_group
+export LOCATION := location
+export VM_NAME := vm_name
+export TS_AUTHKEY := ts_authkey
+export ENV := environment
+export IP_ALLOW := ip_allow
+export SSH_KEY := ssh_key
+export SUDO_USER := sudo_user
+export PGHOST := pg_host
+export PGPASSWORD := pg_password
+export PGPORT := pg_port
+export PGDATABASE := pg_database
+export PGUSER := pg_user
+export VALIDATION_RESOURCE_GROUP := existing_resource_group
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+default:
+    @just --list
+
+# Check generated ARM and preview the deployment.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "$VALIDATION_RESOURCE_GROUP" ]]; then
+        printf 'RESOURCE_GROUP must name an existing resource group.\n' >&2
+        exit 1
+    fi
+    diff -u main.json <(az bicep build --file main.bicep --stdout)
+    temp_dir="$(mktemp -d)"
+    trap 'rm -f "$temp_dir/id_rsa" "$temp_dir/id_rsa.pub"; rmdir "$temp_dir"' EXIT
+    ssh-keygen -q -t rsa -b 2048 -N '' -f "$temp_dir/id_rsa"
+    group_location="$(az group show --name "$RESOURCE_GROUP" --query location -o tsv)"
+    az deployment group what-if \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file vm.bicep \
+        --parameters \
+            "location=$group_location" \
+            "sshKey=$(<"$temp_dir/id_rsa.pub")" \
+            allowIpPort22=127.0.0.1 \
+        --validation-level Template \
+        --no-pretty-print
+    az deployment group what-if \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file postgres.bicep \
+        --parameters \
+            "location=$group_location" \
+            firewallRuleIp=127.0.0.1 \
+        --no-pretty-print
+
+# Create the Azure resource group.
+group-create:
+    az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+
+# Deploy main.bicep at subscription scope.
+deploy-main:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ssh_public_key=""
+    if [[ -n "$SSH_KEY" ]]; then
+        if [[ ! -f "$SSH_KEY" ]]; then
+            printf 'SSH_KEY does not exist: %s\n' "$SSH_KEY" >&2
+            exit 1
+        fi
+        ssh_public_key="$(<"$SSH_KEY")"
+        if [[ "$ssh_public_key" == "-----BEGIN OPENSSH PRIVATE KEY-----"* ]]; then
+            printf 'SSH_KEY is a private key. Provide a public key instead.\n' >&2
+            exit 1
+        fi
+    else
+        printf 'SSH_KEY not set. Using the template default.\n'
+    fi
+
+    az deployment sub create \
+        --location "$LOCATION" \
+        --template-file main.bicep \
+        --parameters \
+            "resourceGroup=$RESOURCE_GROUP" \
+            "sshKey=$ssh_public_key"
+
+# Run Tailscale on the VM through Docker.
+tailscale-deploy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "$TS_AUTHKEY" ]]; then
+        printf 'TS_AUTHKEY not set.\n' >&2
+        exit 1
+    fi
+
+    printf -v auth_key_command 'export TS_AUTHKEY=%q' "$TS_AUTHKEY"
+    printf -v hostname_arg '%q' "--hostname=$RESOURCE_GROUP-$VM_NAME"
+    docker_command="docker run -d --name=tailscaled -v /var/lib:/var/lib -v /dev/net/tun:/dev/net/tun --network=host --cap-add=NET_ADMIN --cap-add=NET_RAW --env TS_STATE_DIR=/var/lib/tailscale/state --env TS_AUTHKEY --env TS_EXTRA_ARGS=$hostname_arg tailscale/tailscale"
+
+    az vm run-command invoke \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$VM_NAME" \
+        --command-id RunShellScript \
+        --scripts \
+            "docker rm -f tailscaled" \
+            "sudo rm -rf /var/lib/tailscale/" \
+            "$auth_key_command" \
+            "$docker_command"
+
+# Print the Tailscale container logs.
+tailscale-logs:
+    az vm run-command invoke \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$VM_NAME" \
+        --command-id RunShellScript \
+        --scripts "docker logs tailscaled" \
+        --query "value[0].message" \
+        --output tsv
+
+# Deploy vm.bicep at resource group scope.
+deploy-vm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ip_allow="$IP_ALLOW"
+    if [[ -z "$ip_allow" ]]; then
+        ip_allow="$(curl --fail --silent --show-error https://myip.dnsomatic.com/)"
+    fi
+
+    ssh_public_key=""
+    if [[ -n "$SSH_KEY" ]]; then
+        if [[ ! -f "$SSH_KEY" ]]; then
+            printf 'SSH_KEY does not exist: %s\n' "$SSH_KEY" >&2
+            exit 1
+        fi
+        ssh_public_key="$(<"$SSH_KEY")"
+        if [[ "$ssh_public_key" == "-----BEGIN OPENSSH PRIVATE KEY-----"* ]]; then
+            printf 'SSH_KEY is a private key. Provide a public key instead.\n' >&2
+            exit 1
+        fi
+    else
+        printf 'SSH_KEY not set. Using the template default.\n'
+    fi
+
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file vm.bicep \
+        --parameters \
+            "osDiskSize=128" \
+            "sshKey=$ssh_public_key" \
+            "allowIpPort22=$ip_allow" \
+            "env=$ENV"
+
+[private]
+generate-password:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    pick_unique() {
+        local pool="$1"
+        local count="$2"
+        local result=""
+        local hex value limit index
+
+        while (( ${#result} < count )); do
+            limit=$((256 - (256 % ${#pool})))
+            while true; do
+                hex="$(openssl rand -hex 1)"
+                value=$((16#$hex))
+                (( value < limit )) && break
+            done
+            index=$((value % ${#pool}))
+            result+="${pool:index:1}"
+            pool="${pool:0:index}${pool:index+1}"
+        done
+        printf '%s' "$result"
+    }
+
+    letters="$(pick_unique 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' 12)"
+    digits="$(pick_unique '0123456789' 10)"
+    symbols="$(pick_unique '~!@#$%^&*()_+`-={}|[]\:"<>?,./' 10)"
+    pick_unique "$letters$digits$symbols" 32
+
+# Print a securely generated password.
+password:
+    @just generate-password
+
+# Deploy postgres.bicep and write connection settings to env.sh.
+deploy-postgres:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    password="$(just generate-password)"
+    ip_allow="$IP_ALLOW"
+    if [[ -z "$ip_allow" ]]; then
+        ip_allow="$(curl --fail --silent --show-error https://myip.dnsomatic.com/)"
+    fi
+
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file postgres.bicep \
+        --parameters \
+            "size=small" \
+            "firewallRuleIp=$ip_allow"
+
+    postgres_name="$(
+        az deployment group show \
+            --name postgres \
+            --resource-group "$RESOURCE_GROUP" \
+            --output tsv \
+            --query "properties.outputs.postgresName.value"
+    )"
+
+    {
+        printf "export PGHOST='%s.postgres.database.azure.com'\n" "$postgres_name"
+        printf "export PGPASSWORD='%s'\n" "$password"
+        printf "export PGPORT='5432'\n"
+        printf "export PGDATABASE='postgres'\n"
+        printf "export PGUSER='username'\n"
+    } > env.sh
+    printf 'Environment variables written to env.sh\n'
+
+# Configure the PostgreSQL Entra administrator and firewall rule.
+configure-postgres:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf 'Getting public IP address\n'
+    public_ip="$(
+        az vm show \
+            --show-details \
+            --name "$VM_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --output tsv \
+            --query "publicIps"
+    )"
+    if [[ -z "$public_ip" ]]; then
+        printf 'No public IP found for VM %s in RESOURCE_GROUP %s.\n' "$VM_NAME" "$RESOURCE_GROUP" >&2
+        exit 1
+    fi
+
+    printf 'Getting PostgreSQL server name\n'
+    postgres_name="$(
+        az postgres flexible-server list \
+            --resource-group "$RESOURCE_GROUP" \
+            --output tsv \
+            --query "[0].name"
+    )"
+    if [[ -z "$postgres_name" ]]; then
+        printf 'No PostgreSQL server found in RESOURCE_GROUP %s.\n' "$RESOURCE_GROUP" >&2
+        exit 1
+    fi
+
+    printf 'Getting identity ID\n'
+    identity_id="$(
+        az identity show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$RESOURCE_GROUP-identity" \
+            --output tsv \
+            --query "principalId"
+    )"
+
+    printf 'Creating Entra administrator\n'
+    az postgres flexible-server ad-admin create \
+        --resource-group "$RESOURCE_GROUP" \
+        --server-name "$postgres_name" \
+        --type ServicePrincipal \
+        --display-name "$RESOURCE_GROUP-identity" \
+        --object-id "$identity_id"
+
+    printf 'Updating firewall rule\n'
+    az postgres flexible-server firewall-rule update \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$postgres_name" \
+        --rule-name DefaultAllowRule \
+        --start-ip-address "$public_ip" \
+        --end-ip-address "$public_ip"
+
+# Print the SSH command from the VM deployment.
+ssh-command:
+    az deployment group show \
+        --name vm \
+        --resource-group "$RESOURCE_GROUP" \
+        --output tsv \
+        --query "properties.outputs.sshCommand.value"
+
+# Accept the Flatcar VM image terms.
+accept-terms:
+    az vm image terms accept \
+        --offer flatcar-container-linux-free \
+        --plan stable-gen2 \
+        --publisher kinvolk
+
+# Empty the resource group, leaving the group itself in place.
+group-empty:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    temp_dir="$(mktemp -d)"
+    empty_bicep="$temp_dir/empty.bicep"
+    trap 'rm -f "$empty_bicep"; rmdir "$temp_dir"' EXIT
+    : > "$empty_bicep"
+
+    printf 'Emptying RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$empty_bicep" \
+        --mode Complete
+
+# Install Butane v0.17.0 on Apple silicon macOS.
+ensure-butane:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "$SUDO_USER" ]]; then
+        printf 'Run this command with sudo.\n' >&2
+        exit 1
+    fi
+    if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
+        printf 'OS/architecture %s/%s is not supported.\n' "$(uname -s)" "$(uname -m)" >&2
+        exit 1
+    fi
+
+    temp_file="$(mktemp)"
+    trap 'rm -f "$temp_file"' EXIT
+    curl --fail --location --silent --show-error \
+        https://github.com/coreos/butane/releases/download/v0.17.0/butane-aarch64-apple-darwin \
+        --output "$temp_file"
+    install -m 0755 "$temp_file" /usr/local/bin/butane
+
+# Generate ignition.json from cl.yaml.
+butane:
+    butane --pretty --output ignition.json cl.yaml
+    @cat ignition.json
+
+# Inject ignition.json into vm.bicep.
+bicep:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ ! -f ignition.json ]]; then
+        printf 'ignition.json does not exist; run just butane first.\n' >&2
+        exit 1
+    fi
+
+    temp_file="$(mktemp)"
+    trap 'rm -f "$temp_file"' EXIT
+
+    awk -v ignition_file="ignition.json" '
+        BEGIN {
+            quote = sprintf("%c%c%c", 39, 39, 39)
+            opening = "var customDataIgnition = " quote
+        }
+        $0 == opening {
+            found = 1
+            replacing = 1
+            print
+            while ((getline line < ignition_file) > 0) {
+                print line
+            }
+            close(ignition_file)
+            next
+        }
+        replacing && $0 == quote {
+            replacing = 0
+            print
+            next
+        }
+        !replacing {
+            print
+        }
+        END {
+            if (!found || replacing) {
+                exit 1
+            }
+        }
+    ' vm.bicep > "$temp_file"
+    cp "$temp_file" vm.bicep
+    cat vm.bicep
+
+# Print sample PostgreSQL environment variables.
+env:
+    @printf "export PGHOST=''\n"
+    @printf "export PGPASSWORD=''\n"
+    @printf "export PGPORT='5432'\n"
+    @printf "export PGDATABASE='postgres'\n"
+    @printf "export PGUSER='username'\n"
+
+# Print the psql command from the PostgreSQL deployment.
+psql-command:
+    az deployment group show \
+        --name postgres \
+        --resource-group "$RESOURCE_GROUP" \
+        --output tsv \
+        --query "properties.outputs.postgresUrl.value"
+
+# Connect with psql through the latest PostgreSQL Docker image.
+psql-docker:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    required=(PGHOST PGPASSWORD PGPORT PGDATABASE PGUSER)
+    for variable in "${required[@]}"; do
+        if [[ -z "${!variable:-}" ]]; then
+            printf '%s not set. This command requires: %s\n' "$variable" "${required[*]}" >&2
+            exit 1
+        fi
+    done
+
+    docker run -it \
+        -e PGHOST \
+        -e PGPASSWORD \
+        -e PGPORT \
+        -e PGDATABASE \
+        -e PGUSER \
+        --rm \
+        postgres \
+        psql "sslmode=require"
+
+# Remove files created during deployment.
+clean:
+    rm -f env.sh ignition.json

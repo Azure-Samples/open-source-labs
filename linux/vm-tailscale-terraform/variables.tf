@@ -1,12 +1,14 @@
 variable "tailnet_name" {
   type        = string
-  description = "Tailnet name"
+  description = "Tailnet name; leave empty with tailscale_api_key for interactive login"
+  default     = ""
 }
 
 variable "tailscale_api_key" {
   type        = string
   sensitive   = true
-  description = "Tailscale API key"
+  description = "Tailscale API key; leave empty with tailnet_name for interactive login"
+  default     = ""
 }
 
 variable "location" {
@@ -15,10 +17,16 @@ variable "location" {
   default     = "westus3"
 }
 
+variable "resource_group_name" {
+  type        = string
+  description = "Deploy into this existing resource group; leave empty to create one."
+  default     = ""
+}
+
 variable "tags" {
   type = map(any)
   default = {
-    repo = "Azure-Samples/azure-opensource-labs"
+    repo = "Azure-Samples/open-source-labs"
     lab  = "linux/vm/vm-tailscale-terraform"
   }
 }

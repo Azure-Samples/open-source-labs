@@ -12,12 +12,13 @@ This particular VM will include the following software:
 - [Cog CLI](https://cog.run/getting-started/#install-cog)
 - [Python](https://www.python.org/downloads/)
 
-## Prerequisites
+## Requirements
 
-To use this template, you will need to have the following software installed on your local machine:
-
+- An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - [Terraform](https://www.terraform.io/downloads.html)
-- [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli)
 
 ## Provisioning resources
 
@@ -32,6 +33,22 @@ Set the subscription ID for Terraform to use.
 ```sh
 export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 ```
+
+The `resource_group_name` variable controls where resources are deployed. Leave it empty (the default) to create a resource group in `location`:
+
+```sh
+unset RESOURCE_GROUP
+just validate
+```
+
+To deploy into an existing resource group, set `RESOURCE_GROUP`; the lab Justfile exports it as `TF_VAR_resource_group_name`, and Terraform uses the existing group's location:
+
+```sh
+export RESOURCE_GROUP='<EXISTING_RESOURCE_GROUP_NAME>'
+just validate
+```
+
+When running Terraform directly from this directory instead of using Just, set `TF_VAR_resource_group_name` to the existing resource group name.
 
 Initialize the Terraform configuration.
 

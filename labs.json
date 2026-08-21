@@ -1,0 +1,138 @@
+{
+  "_comment": "Validation ledger. last_validated is asserted by a human or CI that actually ran the lab; it is never derived from git. Set it when you deploy the lab and see it work. See scripts/lab-freshness.sh.",
+  "labs": [
+    {
+      "path": "cloud-native/aks-arm",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+deploy",
+      "required": "arm-diff+what-if"
+    },
+    {
+      "path": "cloud-native/aks-arm64-terraform",
+      "last_validated": "2026-08-15",
+      "validated_by": "cmbox",
+      "method": "terraform-plan",
+      "required": "terraform-plan"
+    },
+    {
+      "path": "cloud-native/aks-avm",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+deploy",
+      "required": "arm-diff+what-if"
+    },
+    {
+      "path": "cloud-native/aks-azure-container-linux",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+what-if",
+      "required": "arm-diff+what-if"
+    },
+    {
+      "path": "cloud-native/aks-azure-linux",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "deploy",
+      "required": "what-if"
+    },
+    {
+      "path": "cloud-native/aks-byo-models-kaito",
+      "last_validated": "2026-08-15",
+      "validated_by": "cmbox",
+      "method": "terraform-plan",
+      "required": "terraform-plan"
+    },
+    {
+      "path": "cloud-native/aks-https-gateway",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+deploy",
+      "required": "arm-diff+what-if"
+    },
+    {
+      "path": "cloud-native/aks-kubeflow",
+      "last_validated": "2026-08-21",
+      "validated_by": "Aaron Wislang",
+      "method": "arm-diff+deploy+go-vet+go-test+links",
+      "required": "what-if"
+    },
+    {
+      "path": "cloud-native/containerapps-bicep",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+what-if",
+      "required": "arm-diff+what-if"
+    },
+    {
+      "path": "cloud-native/containerapps-github-go",
+      "last_validated": "2026-08-14",
+      "validated_by": "cmbox",
+      "method": "links",
+      "required": "links"
+    },
+    {
+      "path": "cloud-native/containerapps-github-python",
+      "last_validated": "2026-08-14",
+      "validated_by": "cmbox",
+      "method": "links",
+      "required": "links"
+    },
+    {
+      "path": "cloud-native/containerapps-python-fastapi",
+      "last_validated": "2026-08-14",
+      "validated_by": "cmbox",
+      "method": "links",
+      "required": "links"
+    },
+    {
+      "path": "cloud-native/containerapps-terraform",
+      "last_validated": "2026-08-15",
+      "validated_by": "cmbox",
+      "method": "terraform-plan+go-vet",
+      "required": "terraform-plan+go-vet"
+    },
+    {
+      "path": "linux/vm",
+      "last_validated": "2026-08-15",
+      "validated_by": "cmbox",
+      "method": "arm-diff+deploy",
+      "required": "arm-diff+what-if"
+    },
+    {
+      "path": "linux/vm-azure-linux",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+what-if",
+      "required": "arm-diff+what-if"
+    },
+    {
+      "path": "linux/vm-flatcar-postgres",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+what-if",
+      "required": "arm-diff+what-if"
+    },
+    {
+      "path": "linux/vm-tailscale",
+      "last_validated": "2026-08-15",
+      "validated_by": "cmbox",
+      "method": "arm-diff+deploy",
+      "required": "arm-diff+what-if"
+    },
+    {
+      "path": "linux/vm-tailscale-terraform",
+      "last_validated": "2026-08-16",
+      "validated_by": "cmbox",
+      "method": "terraform-plan+deploy",
+      "required": "terraform-plan"
+    },
+    {
+      "path": "linux/vmss",
+      "last_validated": "2026-08-17",
+      "validated_by": "cmbox",
+      "method": "arm-diff+what-if",
+      "required": "arm-diff+what-if"
+    }
+  ]
+}

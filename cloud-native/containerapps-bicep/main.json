@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.28.1.47646",
-      "templateHash": "2090419013866571888"
+      "version": "0.46.1.21595",
+      "templateHash": "9037791532119749580"
     }
   },
   "parameters": {
@@ -27,7 +27,7 @@
     },
     {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
+      "apiVersion": "2025-04-01",
       "name": "[format('{0}-containerapp', parameters('resourceGroup'))]",
       "resourceGroup": "[parameters('resourceGroup')]",
       "properties": {
@@ -46,8 +46,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "6306022001052933983"
+              "version": "0.46.1.21595",
+              "templateHash": "8584806025743018266"
             }
           },
           "parameters": {
@@ -94,8 +94,8 @@
             },
             {
               "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2020-08-01-preview",
-              "scope": "[format('Microsoft.ContainerRegistry/registries/{0}', format('acr{0}', variables('rand')))]",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', format('acr{0}', variables('rand')))]",
               "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', format('acr{0}', variables('rand'))), variables('roleAssignmentAcrPull'))]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roleAssignmentAcrPull'))]",
@@ -108,7 +108,7 @@
             },
             {
               "type": "Microsoft.OperationalInsights/workspaces",
-              "apiVersion": "2020-03-01-preview",
+              "apiVersion": "2026-03-01",
               "name": "[variables('logAnalyticsWorkspaceName')]",
               "location": "[parameters('location')]",
               "properties": {
@@ -123,15 +123,15 @@
             },
             {
               "type": "Microsoft.App/managedEnvironments",
-              "apiVersion": "2022-06-01-preview",
+              "apiVersion": "2026-01-01",
               "name": "[parameters('env_name')]",
               "location": "[parameters('location')]",
               "properties": {
                 "appLogsConfiguration": {
                   "destination": "log-analytics",
                   "logAnalyticsConfiguration": {
-                    "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsWorkspaceName')), '2020-03-01-preview').customerId]",
-                    "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsWorkspaceName')), '2020-03-01-preview').primarySharedKey]"
+                    "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsWorkspaceName')), '2026-03-01').customerId]",
+                    "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsWorkspaceName')), '2026-03-01').primarySharedKey]"
                   }
                 }
               },
@@ -141,7 +141,7 @@
             },
             {
               "type": "Microsoft.App/containerApps",
-              "apiVersion": "2022-06-01-preview",
+              "apiVersion": "2026-01-01",
               "name": "my-container-app",
               "location": "[parameters('location')]",
               "identity": {
@@ -195,7 +195,7 @@
     },
     {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
+      "apiVersion": "2025-04-01",
       "name": "[format('{0}-postgres-keyvault', parameters('resourceGroup'))]",
       "resourceGroup": "[parameters('resourceGroup')]",
       "properties": {
@@ -214,8 +214,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "9894607090252028122"
+              "version": "0.46.1.21595",
+              "templateHash": "14410151490928789448"
             }
           },
           "parameters": {
@@ -289,7 +289,7 @@
             },
             {
               "type": "Microsoft.KeyVault/vaults/secrets",
-              "apiVersion": "2021-11-01-preview",
+              "apiVersion": "2026-02-01",
               "name": "[format('{0}/{1}', format('keyvault{0}', variables('rand')), variables('secretName'))]",
               "properties": {
                 "value": "[variables('secretValue')]"
@@ -300,7 +300,7 @@
             },
             {
               "type": "Microsoft.Resources/deployments",
-              "apiVersion": "2022-09-01",
+              "apiVersion": "2025-04-01",
               "name": "[variables('postgresName')]",
               "properties": {
                 "expressionEvaluationOptions": {
@@ -330,8 +330,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.28.1.47646",
-                      "templateHash": "15148922178248312493"
+                      "version": "0.46.1.21595",
+                      "templateHash": "8677933556253012856"
                     }
                   },
                   "parameters": {

@@ -1,3 +1,16 @@
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
+  }
+}
+
 provider "azurerm" {
   features {
     resource_group {
@@ -11,32 +24,43 @@ resource "random_pet" "arm64" {
   length    = 2
 }
 
+data "azurerm_resource_group" "arm64" {
+  count = var.resource_group_name == "" ? 0 : 1
+  name  = var.resource_group_name
+}
+
 resource "azurerm_resource_group" "arm64" {
+  count    = var.resource_group_name == "" ? 1 : 0
   name     = "rg-${random_pet.arm64.id}"
   location = var.location
   tags     = var.tags
 }
 
+locals {
+  resource_group_name = var.resource_group_name == "" ? azurerm_resource_group.arm64[0].name : data.azurerm_resource_group.arm64[0].name
+  location            = var.resource_group_name == "" ? var.location : data.azurerm_resource_group.arm64[0].location
+}
+
 resource "azurerm_container_registry" "arm64" {
   name                = "acr${random_pet.arm64.id}"
-  resource_group_name = azurerm_resource_group.arm64.name
-  location            = azurerm_resource_group.arm64.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
   sku                 = "Basic"
   admin_enabled       = true
 }
 
 resource "azurerm_log_analytics_workspace" "arm64" {
   name                = "law-${random_pet.arm64.id}"
-  resource_group_name = azurerm_resource_group.arm64.name
-  location            = azurerm_resource_group.arm64.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
   sku                 = "PerGB2018"
   retention_in_days   = 30
 }
 
 resource "azurerm_kubernetes_cluster" "arm64" {
   name                = "aks-${random_pet.arm64.id}"
-  resource_group_name = azurerm_resource_group.arm64.name
-  location            = azurerm_resource_group.arm64.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
   dns_prefix          = "aks-${random_pet.arm64.id}"
 
   default_node_pool {
@@ -52,6 +76,10 @@ resource "azurerm_kubernetes_cluster" "arm64" {
 
   identity {
     type = "SystemAssigned"
+  }
+
+  node_provisioning_profile {
+    mode = "Manual"
   }
 }
 

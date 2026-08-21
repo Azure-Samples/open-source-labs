@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: istio-ingressgateway
-  namespace: istio-system
-  annotations:
-    #service.beta.kubernetes.io/azure-dns-label-name: uniquednsname
-spec:
-  type: LoadBalancer

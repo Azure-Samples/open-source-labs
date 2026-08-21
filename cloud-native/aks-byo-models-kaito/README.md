@@ -2,7 +2,7 @@
 
 Being able to self-host open-source models on Kubernetes is a powerful way to leverage the latest advancements in AI/ML while maintaining control over your data and infrastructure. With Kubernetes comes the flexibility to leverage a wide range of tools and frameworks within the cloud-native ecosystem. In this workshop, we will explore how to deploy open-source models on [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/azure/aks/what-is-aks) using [KAITO](https://github.com/kaito-project/kaito), a CNCF Sandbox project that simplifies the deployment of AI applications on Kubernetes. We'll also look at other open-source tools like [KitOps](https://kitops.org/docs/overview/), another CNCF Sandbox project that standardizes how AI/ML projects are organized, versioned, and stored within OCI-compliant registries, and [Cog](https://cog.run/) to build production-ready containers for model inference.
 
-This guide will walk you through the process of running any open-source model on Azure Kubernetes Service (AKS) with KAITO.
+This guide will walk you through the process of running an open-source model on Azure Kubernetes Service (AKS) with KAITO.
 
 By the end of this walkthrough, you will be able to:
 
@@ -13,19 +13,21 @@ By the end of this walkthrough, you will be able to:
 1. Pack and push ModelKit (model and inference code) to ACR with Kit CLI
 1. Self-host Cog model inferencing application on AKS with KAITO
 
-## Pre-requisites
+## Requirements
 
-Before you begin, you will need the following tools installed.
-
-- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) for managing Azure resources.
+- An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Git](https://git-scm.com/)
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
 - [Terraform](https://developer.hashicorp.com/terraform/install) for provisioning Azure resources.
+- [curl](https://curl.se/) for making HTTP requests.
 - [Docker](https://www.docker.com/get-started/) for building and running container images.
+- [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) for managing Kubernetes resources.
 - [KitOps CLI](https://kitops.org/docs/cli/installation/) for managing ModelKits.
 - [Cog CLI](https://cog.run/getting-started/#install-cog) for building and running containerized inference applications.
-- [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl) for managing Kubernetes resources.
 - [Python](https://www.python.org/downloads/) for developing the model inference code.
 - [jq](https://jqlang.org/) for parsing JSON.
-- [curl](https://curl.se/) for making HTTP requests.
 
 > [!TIP]
 > This workshop can be run on any local machine with the above tools installed. However, if you are facing challenges with local compute power or network bandwidth limitations, you can run this workshop on an Azure Virtual Machine. Check out this [README](./workstation/README.md) for instructions on how to set up a VM with all the tools pre-installed. With the VM in place, SSH into the node and proceed with the rest of this walk-through.
@@ -430,6 +432,9 @@ kubectl create secret generic kitops-init-token \
   --from-literal=USERNAME=$ACR_TOKEN_NAME \
   --from-literal=PASSWORD=$ACR_TOKEN_PASSWORD
 ```
+<div hidden>
+  --from-literal=PASSWORD=$ACR_TOKEN_PASSWORD
+</div>
 
 Now we can create a Workspace resource with a custom Pod template that will use the KitOps initContainer to pull and unpack the ModelKit from ACR. The Pod template will also include the Cog application container that will run the inference server.
 
@@ -489,18 +494,18 @@ EOF
 ```
 
 > [!CAUTION]
-> Ensure you have GPU quota in your Azure subscription for the `Standard_NC24ads_A100_v4` VM size. If you do not have GPU quota, you can change the `instanceType` to a different VM size that is available in your subscription.
+> Ensure you have GPU quota in your Azure subscription for the `Standard_NC4as_T4_v3` VM size. If you do not have GPU quota, you can change the `instanceType` to a different VM size that is available in your subscription.
 
 Once KAITO processes this custom resource, it will begin provisioning a new GPU node, attaching it to the cluster and deploying a new Pod. As the new Pod is being rolled out, the initContainer will be responsible for downloading the model to a local directory and making it available for the Cog inference server.
 
-Reference: [https://kitops.org/docs/deploy/](https://kitops.org/docs/deploy/) and [https://github.com/kaito-project/kaito/blob/main/docs/custom-model-integration/custom-deployment-template.yaml](https://github.com/kaito-project/kaito/blob/main/docs/custom-model-integration/custom-deployment-template.yaml)
+Reference: [https://kitops.org/docs/deploy/](https://kitops.org/docs/deploy/) and [https://github.com/kaito-project/kaito/blob/main/examples/custom-model-integration/custom-model-deployment.yaml](https://github.com/kaito-project/kaito/blob/main/examples/custom-model-integration/custom-model-deployment.yaml)
 
 Watch the Workspace roll out and wait for the RESOURCEREADY status to show True.
 
 ```sh
 $ kubectl get workspace -w
 NAME                     INSTANCE                   RESOURCEREADY   INFERENCEREADY   JOBSTARTED   WORKSPACESUCCEEDED   AGE
-mysmollm2app-workspace   Standard_NC24ads_A100_v4   True            True                          True                 8m6s
+mysmollm2app-workspace   Standard_NC4as_T4_v3       True            True                          True                 8m6s
 ```
 
 Once the Workspace resource is ready, the Pod will begin to roll out.
@@ -586,7 +591,7 @@ Press `fg` to move the port-forward process back to the foreground then press `C
 
 ## Summary
 
-Congratulations! You've successfully implemented a complete, production-ready workflow for deploying open-source AI models on Azure Kubernetes Service using cloud-native tools:
+Congratulations! You've successfully implemented a complete workflow for deploying open-source AI models on Azure Kubernetes Service using cloud-native tools:
 
 1. **Infrastructure**: Provisioned a fully-managed AKS cluster with KAITO operators for AI workload orchestration and integrated ACR for container management
 1. **Model Management**: Used KitOps to standardize your AI asset organization, packaging SmolLM2-1.7B into a versioned ModelKit with clear separation of model weights and inference code
@@ -606,9 +611,9 @@ To learn more about the tools used in this workshop, check out the following res
 
 ## Join the Community
 
-We encourage you to join our Azure AI Foundry Developer Community​ to share your experiences, ask questions, and get support:
+We encourage you to join our Azure AI Foundry Developer Community to share your experiences, ask questions, and get support:
 
-- [aka.ms/azureaifoundry/discord​](https://aka.ms/azureaifoundry/discord​) - Join our Discord community for real-time discussions and support.
+- [aka.ms/azureaifoundry/discord](https://aka.ms/azureaifoundry/discord) - Join our Discord community for real-time discussions and support.
 - [aka.ms/azureaifoundry/forum](https://aka.ms/azureaifoundry/forum) - Visit our Azure AI Foundry Developer Forum to ask questions and share your knowledge.
 
 ## Cleanup

@@ -7,13 +7,14 @@ Azure Container Apps enables you to run microservices and containerized applicat
 ## Requirements
 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
-- The [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)
-- Bash shell (e.g. macOS, Linux, [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/en-us/windows/wsl/about), [Multipass](https://multipass.run/), [Azure Cloud Shell](https://docs.microsoft.com/en-us/azure/cloud-shell/quickstart), [GitHub Codespaces](https://github.com/features/codespaces), etc)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli?view=azure-cli-latest)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
+- [Lychee](https://github.com/lycheeverse/lychee)
+- [curl](https://curl.se/)
 - A [GitHub Account](https://github.com)
 
 ## 1. Build and Containerize asw101/python-fastapi-pypy
-
-[Walkthrough 1/2 (vimeo.com)](https://vimeo.com/696758621/eb0fc146b4)
 
 1. Visit <https://github.com/asw101/python-fastapi-pypy>
 1. Click "Use this template".
@@ -41,8 +42,6 @@ az provider register --namespace Microsoft.OperationalInsights --wait
 
 ## 3. Set Environment Variables
 
-[Walkthrough 2/2 (vimeo.com)](https://vimeo.com/697821473/3f706c1aca)
-
 ```bash
 RESOURCE_GROUP="my-container-apps"
 LOCATION="canadacentral"
@@ -62,7 +61,7 @@ az group create \
 
 ## 5. Create Azure Container Apps Environment
 
-[Quickstart (docs.microsoft.com)](https://docs.microsoft.com/en-us/azure/container-apps/get-started-existing-container-image?tabs=bash&pivots=container-apps-private-registry)
+[Quickstart (learn.microsoft.com)](https://learn.microsoft.com/azure/container-apps/get-started-existing-container-image?tabs=bash&pivots=container-apps-private-registry)
 
 ```bash
 az containerapp env create \
@@ -96,13 +95,28 @@ echo "https://${CONTAINERAPP_FQDN}"
 curl "https://${CONTAINERAPP_FQDN}"
 ```
 
-## 8. Delete Resource Group
+## 8. Empty the Resource Group
+
+Never delete a resource group when access is granted at resource-group scope:
+deleting it also destroys the scoped role assignment. Empty it with a
+Complete-mode deployment of an empty ARM template instead, which removes every
+resource while leaving the group and its role assignments in place.
 
 ```bash
-az group delete \
-  --name $RESOURCE_GROUP
+cat > empty.json <<'EOF'
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json",
+    "contentVersion": "1.0.0.0",
+    "resources": []
+}
+EOF
+
+az deployment group create \
+  --resource-group $RESOURCE_GROUP \
+  --template-file empty.json \
+  --mode Complete
 ```
 
 ## Notes
 
-- The two video walkthroughs for section 1 and sections 2-8 based on the Go version of this lab under "Cloud Native" at <https://aka.ms/oss-labs>, but is otherwise identical.
+- This lab is the Python version of [Serverless Containers with Go, Azure Container Apps, and GitHub Container Registry](../containerapps-github-go/) under "Cloud Native" at <https://github.com/Azure-Samples/open-source-labs>, but is otherwise identical.

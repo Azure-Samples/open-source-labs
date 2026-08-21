@@ -1,0 +1,68 @@
+# Use a readable year-month resource group name instead of the old opaque YYMM00 format.
+existing_resource_group := env_var_or_default("RESOURCE_GROUP", "")
+resource_group := env_var_or_default("RESOURCE_GROUP", `date +%Y-%m` + "-azure-linux")
+location := env_var_or_default("LOCATION", "canadacentral")
+aks_name := env_var_or_default("AKS_NAME", "aks1")
+k8s_namespace := env_var_or_default("K8S_NAMESPACE", "default")
+os_sku := env_var_or_default("OS_SKU", "AzureLinux3")
+
+export RESOURCE_GROUP := resource_group
+export LOCATION := location
+export AKS_NAME := aks_name
+export K8S_NAMESPACE := k8s_namespace
+export OS_SKU := os_sku
+export VALIDATION_RESOURCE_GROUP := existing_resource_group
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+default:
+    @just --list
+
+# Preview the AKS deployment without changing Azure resources.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "$VALIDATION_RESOURCE_GROUP" ]]; then
+        printf 'RESOURCE_GROUP must name an existing resource group.\n' >&2
+        exit 1
+    fi
+    az deployment group what-if --resource-group "$RESOURCE_GROUP" --template-file aks.bicep --parameters "location=$LOCATION" "osSKU=$OS_SKU" --no-pretty-print
+
+# Create the Azure resource group.
+group-create:
+    az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+
+# Empty the resource group, leaving the group itself in place.
+group-empty:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    temp_dir="$(mktemp -d)"
+    empty_bicep="$temp_dir/empty.bicep"
+    trap 'rm -f "$empty_bicep"; rmdir "$temp_dir"' EXIT
+    : > "$empty_bicep"
+
+    printf 'Emptying RESOURCE_GROUP %s in 10 seconds.\n' "$RESOURCE_GROUP"
+    sleep 10
+    az deployment group create \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$empty_bicep" \
+        --mode Complete
+
+# Deploy aks.bicep at resource group scope.
+deploy-aks:
+    az deployment group create --resource-group "$RESOURCE_GROUP" --template-file aks.bicep --parameters "location=$LOCATION" "osSKU=$OS_SKU"
+
+# Delete all resources in the configured Kubernetes namespace.
+empty-namespace:
+    az aks command invoke --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME" --command "kubectl delete all --all -n $K8S_NAMESPACE"
+
+# Get credentials for the AKS cluster.
+aks-credentials:
+    az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME" --overwrite-existing
+
+# Show the node image version running in each AKS node pool.
+node-image-version:
+    az aks nodepool list --resource-group "$RESOURCE_GROUP" --cluster-name "$AKS_NAME" --query '[].{name:name,nodeImageVersion:nodeImageVersion}'
+
+# Install kubectl through the Azure CLI.
+install-kubectl:
+    az aks install-cli

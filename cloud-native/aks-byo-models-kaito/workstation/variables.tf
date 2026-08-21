@@ -4,6 +4,12 @@ variable "location" {
   description = "value of Azure region for resource deployment"
 }
 
+variable "resource_group_name" {
+  type        = string
+  description = "Deploy into this existing resource group; leave empty to create one."
+  default     = ""
+}
+
 variable "vm_size" {
   type        = string
   default     = "Standard_D8s_v4"

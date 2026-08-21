@@ -1,34 +1,59 @@
 # Linux on Azure with Flatcar Linux and Azure Database for PostgreSQL
 
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Flinux%2Fvm-flatcar-postgres%2Fmain.json)
+
+Before using the portal, accept the Flatcar Marketplace terms; the generated form also requires an SSH public key in `sshKey`.
+
+## Requirements
+
+- An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
+- [Butane](https://coreos.github.io/butane/) for regenerating `ignition.json`
+- The `diff` utility
+- The OpenSSH `ssh-keygen` utility
+- An existing resource group for validation
+
+```console
+$ just
+Available recipes:
+    accept-terms       # Accept the Flatcar VM image terms.
+    bicep              # Inject ignition.json into vm.bicep.
+    butane             # Generate ignition.json from cl.yaml.
+    clean              # Remove files created during deployment.
+    configure-postgres # Configure the PostgreSQL Entra administrator and firewall rule.
+    default
+    deploy-main        # Deploy main.bicep at subscription scope.
+    deploy-postgres    # Deploy postgres.bicep and write connection settings to env.sh.
+    deploy-vm          # Deploy vm.bicep at resource group scope.
+    ensure-butane      # Install Butane v0.17.0 on Apple silicon macOS.
+    env                # Print sample PostgreSQL environment variables.
+    group-create       # Create the Azure resource group.
+    group-empty        # Empty the resource group, leaving the group itself in place.
+    password           # Print a securely generated password.
+    psql-command       # Print the psql command from the PostgreSQL deployment.
+    psql-docker        # Connect with psql through the latest PostgreSQL Docker image.
+    ssh-command        # Print the SSH command from the VM deployment.
+    tailscale-deploy   # Run Tailscale on the VM through Docker.
+    tailscale-logs     # Print the Tailscale container logs.
+    validate           # Check generated ARM and preview the deployment.
 ```
-$ mage
-Targets:
-  acceptTerms          accepts the Flatcar VM image terms
-  bicep                injects ignition.json into the customDataIgnition variable in vm.bicep
-  butane               uses the Butane CLI tool to generate ignition.json from cl.yaml
-  clean                removes files created during deployment
-  configurePostgres    configures ad-admin user and firewall rule
-  deployMain           deploys main.bicep at the Subscription level
-  deployPostgres       deploys postgres.bicep to the Azure resource group
-  deployVM             deploys vm.bicep to the Azure resource group with parameters
-  empty                empties the Azure resource group
-  ensureButane         downloads butane from GitHub (coreos/butane/releases)
-  env                  prints the sample environment variables
-  group                creates the Azure resource group
-  groupDelete          deletes the Azure resource group
-  password             prints a securely generated password to the standard output
-  psqlCommand          outputs the psql command
-  psqlDocker           connect via pql using docker and the latest postgres image
-  sshCommand           outputs the SSH command
-  tailscaleDeploy      runs tailscale on the VM via docker
-  tailscaleLogs        get the logs for the tailscale container
+
+## Validate
+
+Set `RESOURCE_GROUP` to an existing resource group. Validation checks the generated ARM JSON and runs resource-group-scoped previews of `vm.bicep` and `postgres.bicep`, passing the group's location, a generated SSH key, and the same loopback firewall address as `main.bicep`. The VM preview uses ARM's `Template` validation level because checking the Flatcar Marketplace agreement requires subscription-scope access; Azure still performs the group-scoped what-if and returns the resource changes.
+
+```bash
+export RESOURCE_GROUP='<EXISTING_RESOURCE_GROUP_NAME>'
+just validate
 ```
 
 ## Usage
 
-The below commands create a resoure group, empty it, deploy the VM and Postgres, and configure Postgres.
+The commands below create a resource group, empty it, deploy the VM and PostgreSQL, and configure PostgreSQL.
 
-```
+```console
 export SSH_KEY=~/.ssh/id_rsa.pub
-mage group empty deployVm deployPostgres configurePostgres
+just group-create group-empty deploy-vm deploy-postgres configure-postgres
 ```

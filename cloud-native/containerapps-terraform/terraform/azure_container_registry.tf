@@ -1,14 +1,14 @@
 resource "azurerm_container_registry" "aca" {
   name                = "aca${local.resource_name_unique}"
-  resource_group_name = azurerm_resource_group.aca.name
-  location            = azurerm_resource_group.aca.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
   sku                 = "Basic"
   admin_enabled       = true
 }
 
 resource "azurerm_user_assigned_identity" "aca" {
-  resource_group_name = azurerm_resource_group.aca.name
-  location            = azurerm_resource_group.aca.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
 
   name = "id-${local.resource_name}"
 }
@@ -47,7 +47,7 @@ resource "time_sleep" "wait" {
   create_duration = "60s"
 
   depends_on = [
-    null_resource.receiver, 
+    null_resource.receiver,
     null_resource.sender
   ]
 }

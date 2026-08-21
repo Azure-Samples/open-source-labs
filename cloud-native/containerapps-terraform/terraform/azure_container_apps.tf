@@ -1,20 +1,20 @@
 resource "azurerm_log_analytics_workspace" "aca" {
   name                = "law-${local.resource_name_unique}"
-  resource_group_name = azurerm_resource_group.aca.name
-  location            = azurerm_resource_group.aca.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
   sku                 = "PerGB2018"
   retention_in_days   = 30
 }
 
 # https://registry.terraform.io/providers/Azure/azapi/latest/docs
-# https://docs.microsoft.com/en-us/azure/templates/microsoft.app/2022-03-01/managedenvironments?tabs=bicep&pivots=deployment-language-terraform
+# https://learn.microsoft.com/azure/templates/microsoft.app/2026-01-01/managedenvironments?tabs=bicep&pivots=deployment-language-terraform
 resource "azapi_resource" "env" {
-  type      = "Microsoft.App/managedEnvironments@2022-03-01"
+  type      = "Microsoft.App/managedEnvironments@2026-01-01"
   name      = "env-${local.resource_name}"
-  parent_id = azurerm_resource_group.aca.id
-  location  = azurerm_resource_group.aca.location
+  parent_id = local.resource_group_id
+  location  = local.location
 
-  body = jsonencode({
+  body = {
     properties = {
       appLogsConfiguration = {
         destination = "log-analytics"
@@ -29,17 +29,17 @@ resource "azapi_resource" "env" {
         internal               = var.environment_virtual_network.is_internal
       } : null
     }
-  })
+  }
 }
 
-# https://docs.microsoft.com/en-us/azure/templates/microsoft.app/2022-03-01/containerapps?tabs=bicep&pivots=deployment-language-terraform
+# https://learn.microsoft.com/azure/templates/microsoft.app/2026-01-01/containerapps?tabs=bicep&pivots=deployment-language-terraform
 resource "azapi_resource" "helloworld" {
-  type      = "Microsoft.App/containerApps@2022-03-01"
+  type      = "Microsoft.App/containerApps@2026-01-01"
   name      = "helloworld"
-  parent_id = azurerm_resource_group.aca.id
-  location  = azurerm_resource_group.aca.location
+  parent_id = local.resource_group_id
+  location  = local.location
 
-  body = jsonencode({
+  body = {
     properties = {
       managedEnvironmentId = azapi_resource.env.id
       configuration = {
@@ -84,17 +84,17 @@ resource "azapi_resource" "helloworld" {
         }
       }
     }
-  })
+  }
 
   # this tells azapi to pull out properties and stuff into the output attribute for the object
   response_export_values = ["properties.configuration.ingress.fqdn"]
 }
 
 resource "azapi_resource" "sender" {
-  type      = "Microsoft.App/containerApps@2022-03-01"
+  type      = "Microsoft.App/containerApps@2026-01-01"
   name      = "go-servicebus-sender"
-  parent_id = azurerm_resource_group.aca.id
-  location  = azurerm_resource_group.aca.location
+  parent_id = local.resource_group_id
+  location  = local.location
   identity {
     type = "UserAssigned"
     identity_ids = [
@@ -102,7 +102,7 @@ resource "azapi_resource" "sender" {
     ]
   }
 
-  body = jsonencode({
+  body = {
     properties = {
       managedEnvironmentId = azapi_resource.env.id
       configuration = {
@@ -151,7 +151,7 @@ resource "azapi_resource" "sender" {
         }
       }
     }
-  })
+  }
 
   depends_on = [
     azurerm_role_assignment.aca,
@@ -160,10 +160,10 @@ resource "azapi_resource" "sender" {
 }
 
 resource "azapi_resource" "receiver" {
-  type      = "Microsoft.App/containerApps@2022-03-01"
+  type      = "Microsoft.App/containerApps@2026-01-01"
   name      = "go-servicebus-receiver"
-  parent_id = azurerm_resource_group.aca.id
-  location  = azurerm_resource_group.aca.location
+  parent_id = local.resource_group_id
+  location  = local.location
   identity {
     type = "UserAssigned"
     identity_ids = [
@@ -171,7 +171,7 @@ resource "azapi_resource" "receiver" {
     ]
   }
 
-  body = jsonencode({
+  body = {
     properties = {
       managedEnvironmentId = azapi_resource.env.id
       configuration = {
@@ -223,8 +223,8 @@ resource "azapi_resource" "receiver" {
               custom = {
                 type = "azure-servicebus"
                 metadata = {
-                  queueName   = azurerm_servicebus_queue.aca.name
-                  namespace   = azurerm_servicebus_namespace.aca.name
+                  queueName    = azurerm_servicebus_queue.aca.name
+                  namespace    = azurerm_servicebus_namespace.aca.name
                   messageCount = "5"
                 }
                 auth = [
@@ -239,7 +239,7 @@ resource "azapi_resource" "receiver" {
         }
       }
     }
-  })
+  }
 
   depends_on = [
     azurerm_role_assignment.aca,

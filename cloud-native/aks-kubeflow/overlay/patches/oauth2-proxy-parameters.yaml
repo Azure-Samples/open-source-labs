@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-parameters
+  namespace: oauth2-proxy
+data:
+  FORCE_HTTPS: "true"

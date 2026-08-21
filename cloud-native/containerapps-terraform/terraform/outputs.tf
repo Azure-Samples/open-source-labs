@@ -1,5 +1,5 @@
 output "helloworld_ingress_url" {
-  value = format("%s%s", "https://", jsondecode(azapi_resource.helloworld.output).properties.configuration.ingress.fqdn)
+  value = format("%s%s", "https://", azapi_resource.helloworld.output.properties.configuration.ingress.fqdn)
 }
 
 output "servicebus_connection_string" {

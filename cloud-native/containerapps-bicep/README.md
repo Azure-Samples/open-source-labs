@@ -1,27 +1,33 @@
 # Explore Azure Container Apps, Bicep, and PostgreSQL
 
-In this lab you will deploy Azure Container Apps, Azure Database for PostgreSQL, and other Azure Services (Key Vault, Storage and Managed Identity) with [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://docs.microsoft.com/azure/azure-resource-manager/bicep/overview).
+In this lab you will deploy Azure Container Apps, Azure Database for PostgreSQL, and other Azure Services (Key Vault, Storage and Managed Identity) with [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview).
 
-You will deploy containers from GitHub [Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry) and built with GitHub [Actions](https://docs.github.com/en/actions/publishing-packages/publishing-docker-images#publishing-images-to-github-packages).
+By default, the Container App runs Microsoft's Container Apps hello-world image from Microsoft Container Registry.
 
-You will also import and have the opportunity to explore data from the [Cassini](https://en.wikipedia.org/wiki/Cassini%E2%80%93Huygens) mission to Saturn, thanks to Rob Conery ([@robconery](https://twitter.com/robconery))'s [A curious moon](https://bigmachine.io/products/a-curious-moon/)/[SQL in Orbit](https://bigmachine.io/product/sql-in-orbit/).
+You will also import and have the opportunity to explore data from the [Cassini](https://en.wikipedia.org/wiki/Cassini%E2%80%93Huygens) mission to Saturn, thanks to Rob Conery ([@robconery](https://twitter.com/robconery))'s [A curious moon](https://bigmachine.io/products/a-curious-moon/)/[SQL in Orbit](https://bigmachine.io/products/sql-in-orbit/).
 
 ## Requirements
 
 - An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
-- The [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli)
-- Bash shell (e.g. macOS, Linux, [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/windows/wsl/about), [Multipass](https://multipass.run/), [Azure Cloud Shell](https://docs.microsoft.com/azure/cloud-shell/quickstart), [GitHub Codespaces](https://github.com/features/codespaces), etc)
-- A [GitHub Account](https://github.com)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
+- The `diff` utility
+- An existing resource group for validation
 
 ## Deploy via Azure Portal
 
-The link below will deploy Azure Container Apps, Azure Database for Postgres and Key Vault via a single ARM template, generated from [main.bicep](main.bicep). This template will also create a Resource Group for you.
+The full-lab template deploys Azure Container Apps, Azure Database for Postgres, and Key Vault, and creates a resource group:
 
-[Deploy to Azure](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fazure-opensource-labs%2Fmain%2Fcloud-native%2Fcontainerapps-bicep%2Fmain.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Fcloud-native%2Fcontainerapps-bicep%2Fmain.json)
+
+The self-contained Container Apps template deploys into an existing resource group:
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Fcloud-native%2Fcontainerapps-bicep%2Fcontainerapp.json)
 
 ## Deploy via Azure CLI
 
-Use the [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://docs.microsoft.com/azure/azure-resource-manager/bicep/overview) templates to deploy the infrastructure for your application.
+Use the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and [Bicep](https://learn.microsoft.com/azure/azure-resource-manager/bicep/overview) templates to deploy the infrastructure for your application.
 
 This allows you to deploy the Bicep templates of your choice step-by-step.
 
@@ -102,15 +108,30 @@ az deployment sub create \
       resourceGroup='220600-containerapps'
 ```
 
+## Validate
+
+Set `RESOURCE_GROUP` to an existing resource group. Validation compiles every template, checks the generated ARM JSON, uses the group's location, and runs resource-group-scoped previews of `containerapp.bicep` and `postgres-keyvault.bicep`, the two modules deployed by `main.bicep`:
+
+```bash
+export RESOURCE_GROUP='<EXISTING_RESOURCE_GROUP_NAME>'
+just validate
+```
+
 ## Explore Postgres
 
 See [POSTGRES.md](POSTGRES.md) for instructions on how to login to your Postgres server from your local machine.
 
 ## Clean up resources
 
-Once you have finished exploring, you should delete the resource group to avoid any further charges.
+Never delete a resource group when access is granted at resource-group scope:
+deleting it also destroys the scoped role assignment. Empty it with the
+Complete-mode deployment of [empty.bicep](./empty.bicep) shown in
+[Deploy to Resource Group](#deploy-to-resource-group) instead, which removes
+every resource while leaving the group and its role assignments in place:
 
 ```bash
-az group delete \
-  --name $RESOURCE_GROUP
+az deployment group create \
+  --mode Complete \
+  --resource-group "$RESOURCE_GROUP" \
+  --template-file ./empty.bicep
 ```

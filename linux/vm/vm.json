@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.29.47.4906",
-      "templateHash": "18192218196942100983"
+      "version": "0.46.1.21595",
+      "templateHash": "11023938436875859365"
     }
   },
   "parameters": {
@@ -64,11 +64,11 @@
     },
     "osImage": {
       "type": "string",
-      "defaultValue": "Ubuntu 20.04-LTS",
+      "defaultValue": "Ubuntu 26.04-LTS",
       "allowedValues": [
-        "Ubuntu 20.04-LTS",
-        "Ubuntu 20.04-LTS (arm64)",
-        "Ubuntu 18.04-LTS"
+        "Ubuntu 26.04-LTS",
+        "Ubuntu 26.04-LTS (arm64)",
+        "Ubuntu 24.04-LTS"
       ],
       "metadata": {
         "description": "The OS image for the VM."
@@ -147,7 +147,7 @@
     "cloudInitTailscaleFormat": "[format(variables('cloudInitTailscale'), base64(string(parameters('env'))))]",
     "cloudInitTailscalePostgres": "#cloud-config\n# vim: syntax=yaml\n\npackages:\n- docker.io\n- jq\n\n# create the docker group\ngroups:\n- docker\n\n# Add default auto created user to docker group\nsystem_info:\n  default_user:\n    groups: [docker]\n\nwrite_files:\n- path: /home/azureuser/env.json\n  content: {0}\n  encoding: b64\n- path: /home/azureuser/tailscale.sh\n  content: |\n    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/focal.noarmor.gpg | sudo tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null\n    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/focal.tailscale-keyring.list | sudo tee /etc/apt/sources.list.d/tailscale.list\n    \n    sudo apt-get update\n    sudo apt-get install -y tailscale\n    \n    sudo tailscale up --advertise-routes=10.1.0.0/24,168.63.129.16/32 --accept-dns=false --ssh --authkey \"$1\"\n\nruncmd:\n- cd /home/azureuser/\n- bash tailscale.sh \"$(jq -r '.tskey' env.json)\"\n- docker run --name postgres --restart always -e POSTGRES_HOST_AUTH_METHOD=trust -v /home/azureuser/postgresql/data:/var/lib/postgresql/data -p 5432:5432 -d postgres:14\n- echo $(date) > hello.txt\n- chown -R azureuser:azureuser /home/azureuser/\n",
     "cloudInitTailscalePostgresFormat": "[format(variables('cloudInitTailscalePostgres'), base64(string(parameters('env'))))]",
-    "cloudInitUrl": "#include\nhttps://raw.githubusercontent.com/Azure-Samples/azure-opensource-labs/main/linux/vm/cloud-init/cloud-init.sh\n",
+    "cloudInitUrl": "#include\nhttps://raw.githubusercontent.com/Azure-Samples/open-source-labs/main/linux/vm/cloud-init/cloud-init.sh\n",
     "kvCloudInit": {
       "none": null,
       "docker": "[base64(variables('cloudInitDocker'))]",
@@ -157,22 +157,22 @@
       "url": "[base64(variables('cloudInitUrl'))]"
     },
     "kvImageReference": {
-      "Ubuntu 20.04-LTS": {
-        "publisher": "canonical",
-        "offer": "0001-com-ubuntu-server-focal",
-        "sku": "20_04-lts-gen2",
-        "version": "latest"
-      },
-      "Ubuntu 18.04-LTS": {
+      "Ubuntu 26.04-LTS": {
         "publisher": "Canonical",
-        "offer": "UbuntuServer",
-        "sku": "18.04-LTS",
+        "offer": "ubuntu-26_04-lts",
+        "sku": "server",
         "version": "latest"
       },
-      "Ubuntu 20.04-LTS (arm64)": {
-        "publisher": "canonical",
-        "offer": "0001-com-ubuntu-server-focal",
-        "sku": "20_04-lts-arm64",
+      "Ubuntu 24.04-LTS": {
+        "publisher": "Canonical",
+        "offer": "ubuntu-24_04-lts",
+        "sku": "server",
+        "version": "latest"
+      },
+      "Ubuntu 26.04-LTS (arm64)": {
+        "publisher": "Canonical",
+        "offer": "ubuntu-26_04-lts",
+        "sku": "server-arm64",
         "version": "latest"
       }
     },

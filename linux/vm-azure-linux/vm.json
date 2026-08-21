@@ -1,0 +1,241 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "586321303492606166"
+    }
+  },
+  "parameters": {
+    "vmName": {
+      "type": "string",
+      "defaultValue": "vm1",
+      "metadata": {
+        "description": "The name of the Virtual Machine."
+      }
+    },
+    "osImage": {
+      "type": "string",
+      "defaultValue": "Azure Linux 4",
+      "allowedValues": [
+        "Azure Linux 4",
+        "Azure Linux 4 (arm64)"
+      ],
+      "metadata": {
+        "description": "The Azure Linux 4 image architecture."
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D2s_v6",
+      "allowedValues": [
+        "Standard_D2s_v6"
+      ],
+      "metadata": {
+        "description": "The Virtual Machine size for the x64 image. The Arm64 image automatically uses Standard_D2ps_v6."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+    "allowIpPort22": {
+      "type": "string",
+      "defaultValue": "127.0.0.1",
+      "metadata": {
+        "description": "The source IP address or CIDR allowed to connect over SSH."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "azureuser",
+      "metadata": {
+        "description": "Username for the Virtual Machine."
+      }
+    },
+    "sshKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "SSH public key for the Virtual Machine."
+      }
+    }
+  },
+  "variables": {
+    "imageReferences": {
+      "Azure Linux 4": {
+        "publisher": "microsoftazurelinux",
+        "offer": "azurelinux-4",
+        "sku": "4",
+        "version": "latest"
+      },
+      "Azure Linux 4 (arm64)": {
+        "publisher": "microsoftazurelinux",
+        "offer": "azurelinux-4",
+        "sku": "4-arm64",
+        "version": "latest"
+      }
+    },
+    "resolvedVmSize": "[if(equals(parameters('osImage'), 'Azure Linux 4 (arm64)'), 'Standard_D2ps_v6', parameters('vmSize'))]",
+    "publicIPAddressName": "[format('{0}-ip', parameters('vmName'))]",
+    "networkInterfaceName": "[format('{0}-nic', parameters('vmName'))]",
+    "virtualNetworkName": "[format('{0}-vnet', parameters('vmName'))]",
+    "networkSecurityGroupName": "[format('{0}-nsg', parameters('vmName'))]",
+    "subnetName": "default"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2026-01-01",
+      "name": "[variables('networkSecurityGroupName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "SSH",
+            "properties": {
+              "priority": 100,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "[parameters('allowIpPort22')]",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "22"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2026-01-01",
+      "name": "[variables('virtualNetworkName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.1.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "10.1.0.0/24"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2026-01-01",
+      "name": "[variables('publicIPAddressName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static",
+        "publicIPAddressVersion": "IPv4",
+        "dnsSettings": {
+          "domainNameLabel": "[toLower(format('{0}-{1}', parameters('vmName'), uniqueString(resourceGroup().id)))]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2026-01-01",
+      "name": "[variables('networkInterfaceName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "subnet": {
+                "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName')), '2026-01-01').subnets[0].id]"
+              },
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
+              }
+            }
+          }
+        ],
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]",
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2026-04-01",
+      "name": "[parameters('vmName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('resolvedVmSize')]"
+        },
+        "storageProfile": {
+          "osDisk": {
+            "createOption": "FromImage",
+            "managedDisk": {
+              "storageAccountType": "Standard_LRS"
+            }
+          },
+          "imageReference": "[variables('imageReferences')[parameters('osImage')]]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaceName'))]"
+            }
+          ]
+        },
+        "osProfile": {
+          "computerName": "[parameters('vmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "linuxConfiguration": {
+            "disablePasswordAuthentication": true,
+            "ssh": {
+              "publicKeys": [
+                {
+                  "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
+                  "keyData": "[parameters('sshKey')]"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaceName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "adminUsername": {
+      "type": "string",
+      "value": "[parameters('adminUsername')]"
+    },
+    "hostname": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName')), '2026-01-01').dnsSettings.fqdn]"
+    },
+    "sshCommand": {
+      "type": "string",
+      "value": "[format('ssh {0}@{1}', parameters('adminUsername'), reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName')), '2026-01-01').dnsSettings.fqdn)]"
+    }
+  }
+}

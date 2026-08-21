@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.8.9.13224",
-      "templateHash": "2417723889712623850"
+      "version": "0.46.1.21595",
+      "templateHash": "10595221110523592839"
     }
   },
   "parameters": {
@@ -33,7 +33,7 @@
   "resources": [
     {
       "type": "Microsoft.App/containerApps",
-      "apiVersion": "2022-06-01-preview",
+      "apiVersion": "2026-01-01",
       "name": "[parameters('app_name')]",
       "location": "[parameters('location')]",
       "identity": {

@@ -1,0 +1,62 @@
+default:
+    @just --list
+
+resource_group := env_var_or_default("RESOURCE_GROUP", "")
+location := env_var_or_default("LOCATION", "canadacentral")
+deployment_name := env_var_or_default("DEPLOYMENT_NAME", "aks-azure-container-linux")
+aks_name := env_var_or_default("AKS_NAME", "aks-azure-container-linux")
+vm_size := env_var_or_default("VM_SIZE", "Standard_D2s_v5")
+
+export RESOURCE_GROUP := resource_group
+export LOCATION := location
+export DEPLOYMENT_NAME := deployment_name
+export AKS_NAME := aks_name
+export VM_SIZE := vm_size
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
+
+# Check generated ARM and preview the deployment without changing Azure resources.
+validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "$RESOURCE_GROUP" ]]; then
+        printf 'RESOURCE_GROUP must name an existing resource group.\n' >&2
+        exit 1
+    fi
+    diff -u main.json <(az bicep build --file main.bicep --stdout)
+    az deployment group what-if \
+        --name "$DEPLOYMENT_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file main.bicep \
+        --parameters \
+            "location=$LOCATION" \
+            "clusterName=$AKS_NAME" \
+            "vmSize=$VM_SIZE" \
+        --no-pretty-print
+
+# Deploy the Azure Container Linux AKS cluster at resource-group scope.
+deploy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "$RESOURCE_GROUP" ]]; then
+        printf 'RESOURCE_GROUP must name an existing resource group.\n' >&2
+        exit 1
+    fi
+    az deployment group create \
+        --name "$DEPLOYMENT_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file main.bicep \
+        --parameters \
+            "location=$LOCATION" \
+            "clusterName=$AKS_NAME" \
+            "vmSize=$VM_SIZE"
+
+# Get credentials for the AKS cluster.
+aks-credentials:
+    az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_NAME" --overwrite-existing
+
+# Show each node pool's running ACL image version.
+node-images:
+    az aks nodepool list \
+        --resource-group "$RESOURCE_GROUP" \
+        --cluster-name "$AKS_NAME" \
+        --query '[].{name:name,nodeImageVersion:nodeImageVersion}'

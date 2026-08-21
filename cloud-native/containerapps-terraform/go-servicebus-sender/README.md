@@ -2,7 +2,7 @@
 
 This codebase is inspired by the following docs:
 
-- [Send messages to and receive messages from Azure Service Bus queues (Go)](https://docs.microsoft.com/azure/service-bus-messaging/service-bus-go-how-to-use-queues?tabs=bash)
+- [Send messages to and receive messages from Azure Service Bus queues (Go)](https://learn.microsoft.com/azure/service-bus-messaging/service-bus-go-how-to-use-queues?tabs=bash)
 - [Sending multiple messages using a batch](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus@v1.1.0#readme-sending-multiple-messages-using-a-batch)
 
 To run this app locally, make sure you have ran the `terraform apply` command from the `./terraform` directory. Once all the Azure resources have been provisioned you can run the following:

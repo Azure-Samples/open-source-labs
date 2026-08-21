@@ -4,13 +4,23 @@
 
 Use the following link to deploy the template in this repo using the Azure Portal:
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fazure-opensource-labs%2Fmain%2Flinux%2Fvm%2Fvm.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2Fmain%2Flinux%2Fvm%2Fvm.json)
 
 The "Deploy to Azure" button above can be the fastest way to get up and running with no local dependencies.
 
 You can see how this link is generated in [PORTAL.md](PORTAL.md). It uses the [vm.json](vm.json) ARM (Azure Resource Manager) template, generated from the [vm.bicep](vm.bicep) Bicep template using the `az bicep build -f vm.bicep` command.
 
-Deploying via the command line, which deploys the Bicep template directly, enables you to easily customize it to your requirements, install the [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) and follow the steps below. These examples require a bash shell (e.g. macOS, Linux, [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/windows/wsl/about), [Multipass](https://multipass.run/), [Azure Cloud Shell](https://docs.microsoft.com/azure/cloud-shell/quickstart), [GitHub Codespaces](https://github.com/features/codespaces), etc).
+Deploying via the command line, which deploys the Bicep template directly, enables you to easily customize it to your requirements, install the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and follow the steps below. These examples require a Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces)).
+
+## Requirements
+
+- An **Azure Subscription** (e.g. [Free](https://aka.ms/azure-free-account) or [Student](https://aka.ms/azure-student-account) account)
+- The [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- A Bash shell (macOS, Linux, [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/about), [Azure Cloud Shell](https://learn.microsoft.com/azure/cloud-shell/get-started), or [GitHub Codespaces](https://github.com/features/codespaces))
+- [Just](https://just.systems/) (`brew install just`, or see the [install guide](https://just.systems/man/en/packages.html))
+- The `diff` utility
+- [jq](https://jqlang.github.io/jq/download/)
+- The `dig` DNS lookup utility
 
 ## Cloud-init
 
@@ -32,9 +42,7 @@ This template is used as the foundation for other templates such as `tailscale` 
 
 ### `tailscale`
 
-[Walkthrough (vimeo.com)](https://vimeo.com/735970928/abef23554e)
-
-This package uses the `write_files` and `run_cmd` modules to write the `env` parameter (`{"tskey":"..."}`) to `/home/azureuser/env.json` function), and our setup script to `/home/azureuser/tailscale.sh`. The `env` variable is embedded in the template using Bicep's [format](https://docs.microsoft.com/azure/azure-resource-manager/bicep/bicep-functions-string#format) function. The `tskey` value is extracted using `jq` and the script completes by echoing the current date to `/home/azureuser/hello.txt`. See variable `cloudInitTailscale` in [vm.bicep](vm.bicep).
+This package uses the `write_files` and `run_cmd` modules to write the `env` parameter (`{"tskey":"..."}`) to `/home/azureuser/env.json` function), and our setup script to `/home/azureuser/tailscale.sh`. The `env` variable is embedded in the template using Bicep's [format](https://learn.microsoft.com/azure/azure-resource-manager/bicep/bicep-functions-string#format) function. The `tskey` value is extracted using `jq` and the script completes by echoing the current date to `/home/azureuser/hello.txt`. See variable `cloudInitTailscale` in [vm.bicep](vm.bicep).
 
 You must generate a Tailscale [Auth key](https://tailscale.com/kb/1085/auth-keys/) via <https://login.tailscale.com/admin/settings/keys> prior to running this script. We recommend using a **one-off** key for this purpose, especially if you are not using [device authorization](https://tailscale.com/kb/1099/device-authorization/).
 
@@ -42,7 +50,7 @@ Tailscale is deployed with [Tailscale SSH](https://tailscale.com/kb/1193/tailsca
 
 ### `tailscale-private`
 
-This template deployment is nearly identical to the tailscale deployment above. The only thing different here is that there is NO exposure of the Linux VM to the public internet (except for port 41641 over UDP for tailscale). It is advisable that you configure MagicDNS so that you can ssh in to the server using just the VM name.
+This template deployment is nearly identical to the tailscale deployment above, but the VM has no public IP address. The network security group retains the UDP port 41641 rule used by Tailscale. It is advisable that you configure MagicDNS so that you can ssh in to the server using just the VM name.
 
 ### `tailscale-postgres`
 
@@ -116,7 +124,7 @@ OUTPUT=$(az deployment group create \
 echo $OUTPUT | jq -r '.properties.outputs.sshCommand.value'
 ```
 
-[Azure Bastion](https://docs.microsoft.com/en-us/azure/bastion/tutorial-create-host-portal#createhost) is an alternative to allowing access to Port 22 (SSH) on a single IP address. You can find the command to connect using the [native client](https://docs.microsoft.com/azure/bastion/connect-native-client-windows) via the `az network bastion ssh` command in [BASTION.md](BASTION.md).
+[Azure Bastion](https://learn.microsoft.com/azure/bastion/tutorial-create-host-portal#createhost) is an alternative to allowing access to Port 22 (SSH) on a single IP address. You can find the command to connect using the [native client](https://learn.microsoft.com/azure/bastion/connect-native-client-windows) via the `az network bastion ssh` command in [BASTION.md](BASTION.md).
 
 ### Option 3: Advanced with tailscale
 
@@ -192,12 +200,12 @@ az deployment group create \
         cloudInit='tailscale-private' \
         env="$ENV" \
         vmSize="$VM_SIZE" \
-        osImage='Ubuntu 20.04-LTS (arm64)'
+        osImage='Ubuntu 26.04-LTS (arm64)'
 ```
 
-The `vmSize` parameter in the [vm.bicep](./vm.bicep) template currently accepts either `Standard_D2ps_v5` or `Standard_D2ps_v5`.
+The `vmSize` parameter in the [vm.bicep](./vm.bicep) template accepts either `Standard_D2ps_v5` or `Standard_D4ps_v5` for Arm64 deployments.
 
-When using any of these SKUs, you must make sure the `osImage` is set to `Ubuntu 20.04-LTS (arm64)` as this value will select the proper OS image that can be used with arm64 architecture.
+When using either Arm64 SKU, you must make sure the `osImage` is set to `Ubuntu 26.04-LTS (arm64)` as this value selects the matching Arm64 OS image.
 
 ## Delete Resources
 

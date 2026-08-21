@@ -37,7 +37,7 @@ var roleDefinitionId = {
 }
 
 var roleAssignmentStorageAccountDefinition = 'StorageBlobDataContributor'
-resource roleAssignmentStorageAccount 'Microsoft.Authorization/roleAssignments@2020-08-01-preview' = {
+resource roleAssignmentStorageAccount 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(storageAccount.id, roleAssignmentStorageAccountDefinition)
   scope: storageAccount
   properties: {
