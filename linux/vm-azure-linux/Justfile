@@ -1,3 +1,4 @@
+existing_resource_group := env_var_or_default("RESOURCE_GROUP", "")
 resource_group := env_var_or_default("RESOURCE_GROUP", `date +%Y-%m` + "-vm-azure-linux")
 location := env_var_or_default("LOCATION", "canadacentral")
 vm_name := env_var_or_default("VM_NAME", "vm1")
@@ -11,6 +12,7 @@ export VM_NAME := vm_name
 export OS_IMAGE := os_image
 export SSH_KEY := ssh_key
 export IP_ALLOW := ip_allow
+export VALIDATION_RESOURCE_GROUP := existing_resource_group
 export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 
 default:
@@ -20,6 +22,10 @@ default:
 validate:
     #!/usr/bin/env bash
     set -euo pipefail
+    if [[ -z "$VALIDATION_RESOURCE_GROUP" ]]; then
+        printf 'RESOURCE_GROUP must name an existing resource group.\n' >&2
+        exit 1
+    fi
     diff -u vm.json <(az bicep build --file vm.bicep --stdout)
     temp_dir="$(mktemp -d)"
     trap 'rm -f "$temp_dir/id_rsa" "$temp_dir/id_rsa.pub"; rmdir "$temp_dir"' EXIT

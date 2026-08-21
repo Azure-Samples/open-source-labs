@@ -16,7 +16,7 @@ Go (golang), Python, PyCon, GopherCon, OSCON & more.
 ## Python
 
 ### PyCon 2023 Lab
-- [Lab: Deploy Django Application with PostgreSQL via Azure Container Apps](https://github.com/Azure-Samples/azure-django-postgres-flexible-aca/tree/main/lab#-get-ready-for-takeoff) [for [PyCon 2023](https://aka.ms/microsoft-pycon-lab)]
+- [Lab: Deploy Django Application with PostgreSQL via Azure Container Apps](https://github.com/Azure-Samples/azure-django-postgres-flexible-aca) [for [PyCon 2023](https://aka.ms/microsoft-pycon-lab)]
 
 ### Azure Container Apps
 
@@ -25,6 +25,7 @@ Go (golang), Python, PyCon, GopherCon, OSCON & more.
 ### Azure Python Labs (PyCon 2022, 2021, ...)
 
 - [Azure-Samples/azure-python-labs](https://github.com/Azure-Samples/azure-python-labs)
+
 
 ## OSCON 2019
 

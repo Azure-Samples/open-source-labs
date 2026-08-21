@@ -185,7 +185,7 @@ var cloudInitTailscalePostgresFormat = format(cloudInitTailscalePostgres, base64
 
 var cloudInitUrl = '''
 #include
-https://raw.githubusercontent.com/Azure-Samples/azure-opensource-labs/main/linux/vm/cloud-init/cloud-init.sh
+https://raw.githubusercontent.com/Azure-Samples/open-source-labs/main/linux/vm/cloud-init/cloud-init.sh
 '''
 
 var kvCloudInit = {

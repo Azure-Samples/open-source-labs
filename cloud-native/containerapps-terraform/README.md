@@ -20,7 +20,7 @@ To import dashboards, navigate to your Azure Managed Grafana site, click on the 
 - The [Terraform CLI](https://www.terraform.io/downloads)
 - [Go](https://go.dev/doc/install)
 - [Docker](https://docs.docker.com/get-docker/)
-- The [k6 CLI](https://k6.io/docs/getting-started/installation/)
+- The [k6 CLI](https://grafana.com/docs/k6/latest/set-up/install-k6/)
 
 Export the selected Azure subscription ID for the AzureRM provider:
 

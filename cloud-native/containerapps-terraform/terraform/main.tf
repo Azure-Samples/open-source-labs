@@ -86,7 +86,7 @@ resource "azurerm_resource_group" "aca" {
   location = local.location
 
   tags = {
-    repo = "git@github.com:Azure-Samples/azure-opensource-labs.git"
+    repo = "git@github.com:Azure-Samples/open-source-labs.git"
   }
 }
 

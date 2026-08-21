@@ -1,6 +1,7 @@
 # Use a readable year-month resource group name instead of the old opaque YYMM00 format.
+existing_resource_group := env_var_or_default("RESOURCE_GROUP", "")
 resource_group := env_var_or_default("RESOURCE_GROUP", `date +%Y-%m` + "-azure-linux")
-location := env_var_or_default("LOCATION", "eastus")
+location := env_var_or_default("LOCATION", "canadacentral")
 aks_name := env_var_or_default("AKS_NAME", "aks1")
 k8s_namespace := env_var_or_default("K8S_NAMESPACE", "default")
 os_sku := env_var_or_default("OS_SKU", "AzureLinux3")
@@ -10,6 +11,7 @@ export LOCATION := location
 export AKS_NAME := aks_name
 export K8S_NAMESPACE := k8s_namespace
 export OS_SKU := os_sku
+export VALIDATION_RESOURCE_GROUP := existing_resource_group
 export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 
 default:
@@ -17,6 +19,12 @@ default:
 
 # Preview the AKS deployment without changing Azure resources.
 validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "$VALIDATION_RESOURCE_GROUP" ]]; then
+        printf 'RESOURCE_GROUP must name an existing resource group.\n' >&2
+        exit 1
+    fi
     az deployment group what-if --resource-group "$RESOURCE_GROUP" --template-file aks.bicep --parameters "location=$LOCATION" "osSKU=$OS_SKU" --no-pretty-print
 
 # Create the Azure resource group.

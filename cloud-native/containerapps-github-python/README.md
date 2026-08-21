@@ -95,13 +95,28 @@ echo "https://${CONTAINERAPP_FQDN}"
 curl "https://${CONTAINERAPP_FQDN}"
 ```
 
-## 8. Delete Resource Group
+## 8. Empty the Resource Group
+
+Never delete a resource group when access is granted at resource-group scope:
+deleting it also destroys the scoped role assignment. Empty it with a
+Complete-mode deployment of an empty ARM template instead, which removes every
+resource while leaving the group and its role assignments in place.
 
 ```bash
-az group delete \
-  --name $RESOURCE_GROUP
+cat > empty.json <<'EOF'
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json",
+    "contentVersion": "1.0.0.0",
+    "resources": []
+}
+EOF
+
+az deployment group create \
+  --resource-group $RESOURCE_GROUP \
+  --template-file empty.json \
+  --mode Complete
 ```
 
 ## Notes
 
-- The two video walkthroughs for section 1 and sections 2-8 based on the Go version of this lab under "Cloud Native" at <https://github.com/Azure-Samples/open-source-labs>, but is otherwise identical.
+- This lab is the Python version of [Serverless Containers with Go, Azure Container Apps, and GitHub Container Registry](../containerapps-github-go/) under "Cloud Native" at <https://github.com/Azure-Samples/open-source-labs>, but is otherwise identical.

@@ -1,4 +1,5 @@
 # Use a readable year-month resource group name instead of the old opaque YYMM00 format.
+existing_resource_group := env_var_or_default("RESOURCE_GROUP", "")
 resource_group := env_var_or_default("RESOURCE_GROUP", `date +%Y-%m` + "-vmss")
 location := env_var_or_default("LOCATION", "canadacentral")
 vmss_name := env_var_or_default("VMSS_NAME", "vmss1")
@@ -22,6 +23,7 @@ export CUSTOM_DATA := custom_data
 export ENV := environment
 export IP_ALLOW := ip_allow
 export SSH_KEY := ssh_key
+export VALIDATION_RESOURCE_GROUP := existing_resource_group
 export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT := "1"
 
 default:
@@ -31,6 +33,10 @@ default:
 validate:
     #!/usr/bin/env bash
     set -euo pipefail
+    if [[ -z "$VALIDATION_RESOURCE_GROUP" ]]; then
+        printf 'RESOURCE_GROUP must name an existing resource group.\n' >&2
+        exit 1
+    fi
     diff -u vmss.json <(az bicep build --file vmss.bicep --stdout)
     az deployment group what-if \
         --resource-group "$RESOURCE_GROUP" \

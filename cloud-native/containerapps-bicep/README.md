@@ -4,7 +4,7 @@ In this lab you will deploy Azure Container Apps, Azure Database for PostgreSQL,
 
 By default, the Container App runs Microsoft's Container Apps hello-world image from Microsoft Container Registry.
 
-You will also import and have the opportunity to explore data from the [Cassini](https://en.wikipedia.org/wiki/Cassini%E2%80%93Huygens) mission to Saturn, thanks to Rob Conery ([@robconery](https://twitter.com/robconery))'s [A curious moon](https://bigmachine.io/products/a-curious-moon/)/[SQL in Orbit](https://bigmachine.io/product/sql-in-orbit/).
+You will also import and have the opportunity to explore data from the [Cassini](https://en.wikipedia.org/wiki/Cassini%E2%80%93Huygens) mission to Saturn, thanks to Rob Conery ([@robconery](https://twitter.com/robconery))'s [A curious moon](https://bigmachine.io/products/a-curious-moon/)/[SQL in Orbit](https://bigmachine.io/products/sql-in-orbit/).
 
 ## Requirements
 
@@ -123,9 +123,15 @@ See [POSTGRES.md](POSTGRES.md) for instructions on how to login to your Postgres
 
 ## Clean up resources
 
-Once you have finished exploring, you should delete the resource group to avoid any further charges.
+Never delete a resource group when access is granted at resource-group scope:
+deleting it also destroys the scoped role assignment. Empty it with the
+Complete-mode deployment of [empty.bicep](./empty.bicep) shown in
+[Deploy to Resource Group](#deploy-to-resource-group) instead, which removes
+every resource while leaving the group and its role assignments in place:
 
 ```bash
-az group delete \
-  --name $RESOURCE_GROUP
+az deployment group create \
+  --mode Complete \
+  --resource-group "$RESOURCE_GROUP" \
+  --template-file ./empty.bicep
 ```

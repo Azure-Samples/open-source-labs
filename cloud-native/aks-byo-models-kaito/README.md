@@ -498,7 +498,7 @@ EOF
 
 Once KAITO processes this custom resource, it will begin provisioning a new GPU node, attaching it to the cluster and deploying a new Pod. As the new Pod is being rolled out, the initContainer will be responsible for downloading the model to a local directory and making it available for the Cog inference server.
 
-Reference: [https://kitops.org/docs/deploy/](https://kitops.org/docs/deploy/) and [https://github.com/kaito-project/kaito/blob/main/docs/custom-model-integration/custom-deployment-template.yaml](https://github.com/kaito-project/kaito/blob/main/docs/custom-model-integration/custom-deployment-template.yaml)
+Reference: [https://kitops.org/docs/deploy/](https://kitops.org/docs/deploy/) and [https://github.com/kaito-project/kaito/blob/main/examples/custom-model-integration/custom-model-deployment.yaml](https://github.com/kaito-project/kaito/blob/main/examples/custom-model-integration/custom-model-deployment.yaml)
 
 Watch the Workspace roll out and wait for the RESOURCEREADY status to show True.
 
@@ -611,9 +611,9 @@ To learn more about the tools used in this workshop, check out the following res
 
 ## Join the Community
 
-We encourage you to join our Azure AI Foundry Developer Community​ to share your experiences, ask questions, and get support:
+We encourage you to join our Azure AI Foundry Developer Community to share your experiences, ask questions, and get support:
 
-- [aka.ms/azureaifoundry/discord​](https://aka.ms/azureaifoundry/discord​) - Join our Discord community for real-time discussions and support.
+- [aka.ms/azureaifoundry/discord](https://aka.ms/azureaifoundry/discord) - Join our Discord community for real-time discussions and support.
 - [aka.ms/azureaifoundry/forum](https://aka.ms/azureaifoundry/forum) - Visit our Azure AI Foundry Developer Forum to ask questions and share your knowledge.
 
 ## Cleanup

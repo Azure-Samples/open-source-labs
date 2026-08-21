@@ -139,11 +139,20 @@ Preview the resource-group-scoped deployment without changing Azure:
 RESOURCE_GROUP=<resource-group> LOCATION=<location> just validate
 ```
 
+`RESOURCE_GROUP` must name a resource group that already exists; `validate`
+refuses to run without it and never creates or changes Azure resources.
+
 Create a resource group and deploy the lab:
 
 ```bash
 RESOURCE_GROUP=<resource-group> LOCATION=<location> just group-create deploy-aks
 ```
+
+Canada Central is the default location. The default `standard_d2s_v5` node size
+is not offered to every subscription in every region — in `eastus` the
+deployment fails preflight with `The VM size of standard_d2s_v5 is not allowed
+in your subscription in location 'eastus'` — and `canadacentral` is both where
+this template's quota work was done and the default every sibling AKS lab uses.
 
 The template leaves the Kubernetes version unset so AKS selects the supported
 regional default. GPU node pools remain disabled unless `deployGpuPools=true`

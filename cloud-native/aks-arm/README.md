@@ -34,12 +34,21 @@ az group create \
     --location eastus
 ```
 
-Deploy Azure Kubernetes Service (AKS) cluster:
+Deploy Azure Kubernetes Service (AKS) cluster. The template's `dnsPrefix`,
+`linuxAdminUsername`, and `sshRSAPublicKey` parameters have no defaults, so all
+three must be supplied. As the [Justfile](./Justfile) does, generate a throwaway
+keypair for the deployment:
 
 ```bash
+ssh-keygen -q -t rsa -b 2048 -N '' -f ~/.ssh/aks-arm
+
 az deployment group create \
     --resource-group 250100-aks \
-    --template-file cloud-native/aks-arm/aks.bicep
+    --template-file cloud-native/aks-arm/aks.bicep \
+    --parameters \
+        dnsPrefix=aks-arm \
+        linuxAdminUsername=azureuser \
+        "sshRSAPublicKey=$(<~/.ssh/aks-arm.pub)"
 ```
 
 ## Cleanup

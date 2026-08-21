@@ -65,10 +65,21 @@ Once you've completed the deployment of Azure infrastructure, run the following 
 export name=$(terraform output -raw random_pet_name)
 ```
 
-You can pull down the `kube_config` file with the following command.
+You can pull down the `kube_config` file with the following command. The cluster
+is always named `aks-${name}`, but the resource group depends on which path you
+took above.
+
+If you left `resource_group_name` empty and Terraform created the group, it is
+named `rg-${name}`:
 
 ```bash
 az aks get-credentials --resource-group "rg-${name}" --name "aks-${name}"
+```
+
+If you deployed into an existing resource group, use that group's name instead:
+
+```bash
+az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "aks-${name}"
 ```
 
 Validate access to your AKS cluster using `kubectl`.

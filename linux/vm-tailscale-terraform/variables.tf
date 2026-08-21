@@ -26,7 +26,7 @@ variable "resource_group_name" {
 variable "tags" {
   type = map(any)
   default = {
-    repo = "Azure-Samples/azure-opensource-labs"
+    repo = "Azure-Samples/open-source-labs"
     lab  = "linux/vm/vm-tailscale-terraform"
   }
 }
