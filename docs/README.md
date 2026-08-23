@@ -7,4 +7,7 @@ background.
 Lab-specific teaching belongs in each lab's README. Operational rules for
 changing a lab belong in [AGENTS.md](../AGENTS.md).
 
-No cross-lab documents have been added yet. This file is a placeholder index.
+## Documents
+
+- [Lab snapshots](snapshot.md): what the dated snapshot branches hold, and
+  how to read and deploy from one.
