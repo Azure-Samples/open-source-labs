@@ -11,3 +11,5 @@ changing a lab belong in [AGENTS.md](../AGENTS.md).
 
 - [Lab snapshots](snapshot.md): what the dated snapshot branches hold, and
   how to read and deploy from one.
+- [Deploy to Azure buttons](deploy-to-azure.md): what a button deploys, why
+  that is never the fork or branch it was clicked from, and how to build one.

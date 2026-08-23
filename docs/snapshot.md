@@ -81,8 +81,8 @@ there is `%2Fmain%2F` to `%2F2026-05-01%2F`:
 https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fopen-source-labs%2F2026-05-01%2Flinux%2Fvm-tailscale%2Fvm.json
 ```
 
-`linux/vm/PORTAL.md` and `cloud-native/containerapps-bicep/PORTAL.md` show how
-the encoded URL is built from a template URL.
+[Deploy to Azure buttons](deploy-to-azure.md) covers why the URLs behave this
+way, and how to build one for any branch.
 
 For the four labs above that are only on the snapshot, this substitution is not
 optional. Their paths under `main` now return 404, so any bookmarked raw URL or
